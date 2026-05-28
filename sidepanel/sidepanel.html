@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GuJumpgate  V0.1.5</title>
+  <title>RegisterExt V0.1.5</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -25,7 +25,7 @@
       <div class="header-version-block">
         <div class="header-version-main">
           <button id="extension-update-status" class="header-version-title header-version-link" type="button"
-          aria-label="打开 GitHub Releases 页面" title="打开 GitHub Releases 页面">GuJumpgate  V0.1.5</button>
+          aria-label="打开 GitHub Releases 页面" title="打开 GitHub Releases 页面">RegisterExt V0.1.5</button>
           <button id="btn-release-log" class="header-link-btn" type="button" hidden>更新日志</button>
         </div>
         <span id="extension-version-meta" class="header-version-meta" hidden></span>
@@ -594,11 +594,27 @@
         <span class="data-label">邮箱服务</span>
         <div class="data-inline">
           <select id="select-mail-provider" class="data-select">
-            <option value="hotmail-api">Outlook/Hotmail 账号池</option>
-            <option value="cloudflare-temp-email">Cloudflare Temp Email</option>
-            <option value="cloudmail">Cloud Mail</option>
+            <option value="register-manager-api" selected>register-manager API 服务</option>
           </select>
-          <button id="btn-mail-login" class="btn btn-outline btn-sm data-inline-btn" type="button" disabled>登录</button>
+        </div>
+      </div>
+      <div class="data-row" id="row-register-manager-api-base-url">
+        <span class="data-label">API 服务</span>
+        <input type="text" id="input-register-manager-api-base-url" class="data-input mono"
+          placeholder="http://192.168.31.199:1456/api/extension/RegisterExt" />
+      </div>
+      <div class="data-row" id="row-register-manager-group-name">
+        <span class="data-label">分组筛选</span>
+        <input type="text" id="input-register-manager-group-name" class="data-input"
+          placeholder="留空则使用全部未注册邮箱" />
+      </div>
+      <div class="data-row" id="row-register-manager-account-picker">
+        <span class="data-label">注册邮箱</span>
+        <div class="data-inline">
+          <select id="select-register-manager-account" class="data-select">
+            <option value="">自动选择未注册邮箱</option>
+          </select>
+          <button id="btn-refresh-register-manager-accounts" class="btn btn-outline btn-sm data-inline-btn" type="button">刷新</button>
         </div>
       </div>
       <div class="data-row data-check-row" id="row-custom-mail-provider-pool" style="display:none;">
@@ -941,7 +957,7 @@
         <input type="text" id="input-cloud-mail-domain" class="data-input" placeholder="例如 mail.example.com" />
       </div>
     </div>
-    <div id="hotmail-section" class="data-card hotmail-card" style="display:none;">
+    <div id="hotmail-section" class="data-card hotmail-card" style="display:none;" hidden>
       <div class="section-mini-header">
         <div class="section-mini-copy">
           <span class="section-label">微软邮箱账户池</span>
@@ -2018,6 +2034,7 @@
   <script src="../mail-provider-utils.js"></script>
   <script src="../hotmail-utils.js"></script>
   <script src="../luckmail-utils.js"></script>
+  <script src="../register-manager-api.js"></script>
   <script src="../shared/flow-capabilities.js"></script>
   <script src="../data/step-definitions.js"></script>
   <script src="update-service.js"></script>

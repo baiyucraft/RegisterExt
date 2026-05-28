@@ -16,7 +16,7 @@
 
   function getVersionFamily(version, fallbackFamily = VERSION_FAMILY_LEGACY) {
     const trimmed = String(version || '').trim();
-    if (/^(?:gujumpgate|flowpilot)/i.test(trimmed)) {
+    if (/^(?:registerext|gujumpgate|flowpilot)/i.test(trimmed)) {
       return VERSION_FAMILY_GUJUMPGATE;
     }
     if (/^ultra/i.test(trimmed)) {
@@ -32,7 +32,7 @@
   }
 
   function stripVersionPrefix(version) {
-    return String(version || '').trim().replace(/^(?:(?:gujumpgate|flowpilot|ultra|pro)\s*v?|v)\s*/i, '');
+    return String(version || '').trim().replace(/^(?:(?:registerext|gujumpgate|flowpilot|ultra|pro)\s*v?|v)\s*/i, '');
   }
 
   function extractVersionCore(version) {
@@ -68,7 +68,7 @@
 
   function getVersionFamilyPrefix(family) {
     if (family === VERSION_FAMILY_GUJUMPGATE) {
-      return 'GuJumpgate  V';
+      return 'RegisterExt V';
     }
     if (family === VERSION_FAMILY_ULTRA) {
       return 'Ultra';
@@ -403,11 +403,11 @@
     }
 
     const versionCore = extractVersionCore(manifest?.version || '');
-    return versionCore ? formatDisplayVersion(`GuJumpgate ${versionCore}`, VERSION_FAMILY_GUJUMPGATE) : '';
+    return versionCore ? formatDisplayVersion(`RegisterExt ${versionCore}`, VERSION_FAMILY_GUJUMPGATE) : '';
   }
 
   async function getReleaseSnapshot(options = {}) {
-    const localVersion = getLocalVersionLabel(chrome.runtime.getManifest()) || 'GuJumpgate 0.0';
+    const localVersion = getLocalVersionLabel(chrome.runtime.getManifest()) || 'RegisterExt 0.0';
 
     try {
       const releases = await loadReleases(options);

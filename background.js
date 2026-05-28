@@ -4,6 +4,7 @@ importScripts(
   'shared/source-registry.js',
   'shared/flow-capabilities.js',
   'shared/session-to-json-converter.js',
+  'register-manager-api.js',
   'background/local-cli-proxy-api.js',
   'managed-alias-utils.js',
   'mail2925-utils.js',
@@ -360,6 +361,12 @@ const runtimeStateHelpers = self.MultiPageBackgroundRuntimeState?.createRuntimeS
   DEFAULT_ACTIVE_FLOW_ID,
   defaultNodeStatuses: DEFAULT_NODE_STATUSES,
 }) || null;
+const REGISTER_MANAGER_MAIL_PROVIDER = 'register-manager-api';
+const LEGACY_REGISTER_MANAGER_API_BASE_URLS = new Set([
+  'http://127.0.0.1:1455/api/extension/RegisterExt',
+]);
+const DEFAULT_REGISTER_MANAGER_API_BASE_URL = self.RegisterManagerApi?.DEFAULT_REGISTER_MANAGER_API_BASE_URL
+  || 'http://192.168.31.199:1456/api/extension/RegisterExt';
 const DEFAULT_REGISTRATION_EMAIL_STATE = registrationEmailStateHelpers?.DEFAULT_REGISTRATION_EMAIL_STATE || {
   current: '',
   previous: '',
@@ -1127,12 +1134,20 @@ const PERSISTED_SETTING_DEFAULTS = {
   phoneSmsProvider: DEFAULT_PHONE_SMS_PROVIDER,
   phoneSmsProviderOrder: [],
   verificationResendCount: DEFAULT_VERIFICATION_RESEND_COUNT,
+  registerManagerApiBaseUrl: DEFAULT_REGISTER_MANAGER_API_BASE_URL,
+  registerManagerGroupName: '',
+  registerExtSelectedAccountId: null,
+  registerExtSelectedEmail: '',
+  registerExtRunId: '',
+  registerExtAccountId: null,
+  registerExtCompletedAt: 0,
+  registerExtCompletionStatus: '',
   phoneVerificationReplacementLimit: DEFAULT_PHONE_VERIFICATION_REPLACEMENT_LIMIT,
   phoneCodeWaitSeconds: DEFAULT_PHONE_CODE_WAIT_SECONDS,
   phoneCodeTimeoutWindows: DEFAULT_PHONE_CODE_TIMEOUT_WINDOWS,
   phoneCodePollIntervalSeconds: DEFAULT_PHONE_CODE_POLL_INTERVAL_SECONDS,
   phoneCodePollMaxRounds: DEFAULT_PHONE_CODE_POLL_ROUNDS,
-  mailProvider: HOTMAIL_PROVIDER,
+  mailProvider: REGISTER_MANAGER_MAIL_PROVIDER,
   mail2925Mode: DEFAULT_MAIL_2925_MODE,
   mail2925UseAccountPool: false,
   emailGenerator: 'duck',
@@ -2960,23 +2975,38 @@ function normalizePlusAccountAccessStrategyForState(state = {}) {
 function normalizeMailProvider(value = '') {
   const normalized = String(value || '').trim().toLowerCase();
   switch (normalized) {
-    case 'custom':
-    case ICLOUD_PROVIDER:
-    case GMAIL_PROVIDER:
-    case HOTMAIL_PROVIDER:
-    case LUCKMAIL_PROVIDER:
-    case CLOUDFLARE_TEMP_EMAIL_PROVIDER:
-    case CLOUD_MAIL_PROVIDER:
-    case '163':
-    case '163-vip':
-    case '126':
-    case 'qq':
-    case 'inbucket':
-    case '2925':
+    case REGISTER_MANAGER_MAIL_PROVIDER:
       return normalized;
     default:
       return PERSISTED_SETTING_DEFAULTS.mailProvider;
   }
+}
+
+function normalizeRegisterExtSelectedAccountId(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const numeric = Number(value);
+  return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : null;
+}
+
+function normalizeRegisterManagerApiBaseUrl(value = '') {
+  const normalized = String(value || '').trim().replace(/\/+$/, '');
+  if (!normalized || LEGACY_REGISTER_MANAGER_API_BASE_URLS.has(normalized)) {
+    return DEFAULT_REGISTER_MANAGER_API_BASE_URL;
+  }
+  return normalized;
+}
+
+function normalizeStateProviderForRegisterManager(state = {}) {
+  return {
+    ...state,
+    mailProvider: normalizeMailProvider(state.mailProvider),
+    registerManagerApiBaseUrl: normalizeRegisterManagerApiBaseUrl(state.registerManagerApiBaseUrl),
+    registerManagerGroupName: String(state.registerManagerGroupName || '').trim(),
+    registerExtSelectedAccountId: normalizeRegisterExtSelectedAccountId(state.registerExtSelectedAccountId),
+    registerExtSelectedEmail: String(state.registerExtSelectedEmail || '').trim(),
+  };
 }
 
 function buildLuckmailSessionSettingsPayload(input = {}) {
@@ -3640,13 +3670,16 @@ function normalizePersistentSettingValue(key, value) {
     case 'mailProvider':
       {
         const normalizedMailProvider = normalizeMailProvider(value);
+        if (normalizedMailProvider === REGISTER_MANAGER_MAIL_PROVIDER) {
+          return REGISTER_MANAGER_MAIL_PROVIDER;
+        }
         if (normalizedMailProvider === CLOUDFLARE_TEMP_EMAIL_PROVIDER) {
           return CLOUDFLARE_TEMP_EMAIL_PROVIDER;
         }
         if (normalizedMailProvider === CLOUD_MAIL_PROVIDER) {
           return CLOUD_MAIL_PROVIDER;
         }
-        return HOTMAIL_PROVIDER;
+        return REGISTER_MANAGER_MAIL_PROVIDER;
       }
     case 'mail2925Mode':
       return normalizeMail2925Mode(value);
@@ -3673,6 +3706,14 @@ function normalizePersistentSettingValue(key, value) {
       return normalizeIcloudFetchMode(value);
     case 'accountRunHistoryHelperBaseUrl':
       return normalizeAccountRunHistoryHelperBaseUrl(value);
+    case 'registerManagerApiBaseUrl':
+      return normalizeRegisterManagerApiBaseUrl(value);
+    case 'registerManagerGroupName':
+      return String(value || '').trim();
+    case 'registerExtSelectedAccountId':
+      return normalizeRegisterExtSelectedAccountId(value);
+    case 'registerExtSelectedEmail':
+      return String(value || '').trim();
     case 'localCpaJsonPluginDir':
       return normalizeLocalCpaJsonPluginDir(value);
     case 'localCpaJsonRelativeAuthDir':
@@ -4065,13 +4106,13 @@ async function getState() {
     getPersistedAliasState(),
     accountRunHistoryHelpers?.getPersistedAccountRunHistory?.() || [],
   ]);
-  return buildStateViewWithRuntimeState({
+  return buildStateViewWithRuntimeState(normalizeStateProviderForRegisterManager({
     ...DEFAULT_STATE,
     ...persistedSettings,
     ...persistedAliasState,
     ...state,
     accountRunHistory,
-  });
+  }));
 }
 
 async function initializeSessionStorageAccess() {
@@ -4094,7 +4135,7 @@ async function setState(updates) {
     const sessionUpdates = buildStatePatchWithRuntimeState({
       ...DEFAULT_STATE,
       ...currentSessionState,
-    }, updates);
+    }, normalizeStateProviderForRegisterManager(updates));
     await chrome.storage.session.set(sessionUpdates);
     const persistentAliasUpdates = {};
     if (Object.prototype.hasOwnProperty.call(sessionUpdates, 'manualAliasUsage')) {
@@ -4321,15 +4362,29 @@ async function persistRegistrationEmailState(state = null, email, options = {}) 
     : await getState();
   const normalizedEmail = String(email || '').trim() || null;
   const currentEmail = String(currentState?.email || '').trim() || null;
+  const registerExtRunId = String(options?.runId || '').trim();
+  const registerExtAccountId = options?.accountId ?? null;
   if (!Boolean(options?.preserveAccountIdentity)) {
-    if (normalizedEmail === currentEmail) {
+    if (normalizedEmail === currentEmail && !registerExtRunId && registerExtAccountId === null) {
       return;
     }
+    const registerExtUpdates = registerExtRunId || registerExtAccountId !== null
+      ? {
+          registerExtRunId,
+          registerExtAccountId,
+          registerExtCompletedAt: 0,
+          registerExtCompletionStatus: '',
+        }
+      : {};
     await setEmailState(normalizedEmail, options);
+    if (Object.keys(registerExtUpdates).length) {
+      await setState(registerExtUpdates);
+      broadcastDataUpdate(registerExtUpdates);
+    }
     return;
   }
 
-  const updates = normalizedEmail === currentEmail
+  const emailUpdates = normalizedEmail === currentEmail
     ? (() => {
         const preservedPhoneIdentity = getPreservedPhoneIdentity(currentState);
         return preservedPhoneIdentity
@@ -4345,6 +4400,15 @@ async function persistRegistrationEmailState(state = null, email, options = {}) 
         preserveAccountIdentity: true,
         source: options?.source || '',
       });
+  const updates = {
+    ...emailUpdates,
+    ...(registerExtRunId || registerExtAccountId !== null ? {
+      registerExtRunId,
+      registerExtAccountId,
+      registerExtCompletedAt: 0,
+      registerExtCompletionStatus: '',
+    } : {}),
+  };
 
   if (!Object.keys(updates).length || !statePatchHasChanges(currentState, updates)) {
     return;
@@ -5241,6 +5305,93 @@ function isHotmailProvider(stateOrProvider) {
     ? stateOrProvider
     : stateOrProvider?.mailProvider;
   return provider === HOTMAIL_PROVIDER;
+}
+
+function isRegisterManagerProvider(stateOrProvider) {
+  const value = typeof stateOrProvider === 'string'
+    ? stateOrProvider
+    : (stateOrProvider?.provider || stateOrProvider?.mailProvider);
+  return String(value || '').trim().toLowerCase() === REGISTER_MANAGER_MAIL_PROVIDER;
+}
+
+function createRegisterManagerApiClientForState(state = {}) {
+  if (!self.RegisterManagerApi?.createRegisterManagerApiClient) {
+    throw new Error('RegisterExt API client 未加载。');
+  }
+  return self.RegisterManagerApi.createRegisterManagerApiClient({
+    baseUrl: state.registerManagerApiBaseUrl || DEFAULT_REGISTER_MANAGER_API_BASE_URL,
+  });
+}
+
+async function claimRegisterManagerAccount(state = {}) {
+  const client = createRegisterManagerApiClientForState(state);
+  return client.claimAccount({
+    accountId: normalizeRegisterExtSelectedAccountId(state.registerExtSelectedAccountId) || undefined,
+    email: String(state.registerExtSelectedEmail || '').trim() || undefined,
+    groupName: state.registerManagerGroupName || undefined,
+    clientRequestId: state.activeRunId || state.runId || undefined,
+    extensionVersion: chrome.runtime?.getManifest?.().version_name || chrome.runtime?.getManifest?.().version || undefined,
+  });
+}
+
+async function pollRegisterManagerRunCode(runId, payload = {}) {
+  const state = await getState();
+  const client = createRegisterManagerApiClientForState(state);
+  const result = await client.getRunCode(runId, payload);
+  if (!result?.code) {
+    throw new Error('RegisterExt API 暂未返回验证码。');
+  }
+  return {
+    code: result.code,
+    emailTimestamp: Date.now(),
+    sourceMessage: result.sourceMessage || null,
+    selectionSource: result.selectionSource || '',
+    usedTimeFallback: Boolean(result.usedTimeFallback),
+  };
+}
+
+function isRegisterManagerRunAlreadyCompletedError(error) {
+  const code = String(error?.code || error?.payload?.code || '').trim();
+  return code === 'RUN_ALREADY_COMPLETED';
+}
+
+async function markRegisterManagerRunCompletion(status) {
+  await setState({
+    registerExtCompletedAt: Date.now(),
+    registerExtCompletionStatus: String(status || '').trim().toLowerCase(),
+  });
+}
+
+async function completeRegisterManagerRunForState(state = {}, result = {}) {
+  if (!isRegisterManagerProvider(state) || !state?.registerExtRunId) {
+    return null;
+  }
+  if (state.registerExtCompletedAt || state.registerExtCompletionStatus) {
+    return null;
+  }
+  if (!runtimeStateHelpers?.completeRegisterManagerRegistrationRun) {
+    await addLog('RegisterExt：完成回写不可用，runtime-state helper 未初始化。', 'warn');
+    return null;
+  }
+
+  const status = String(result?.status || '').trim().toLowerCase() || 'failed';
+  const client = createRegisterManagerApiClientForState(state);
+  try {
+    const response = await runtimeStateHelpers.completeRegisterManagerRegistrationRun(state, result, {
+      completeRun: (runId, payload) => client.completeRun(runId, payload),
+    });
+    await markRegisterManagerRunCompletion(status);
+    await addLog(`RegisterExt：已回写注册结果 ${status}。`, status === 'success' ? 'ok' : 'warn');
+    return response;
+  } catch (error) {
+    if (isRegisterManagerRunAlreadyCompletedError(error)) {
+      await markRegisterManagerRunCompletion(status);
+      await addLog('RegisterExt：后端 run 已完成，本次重复回写已跳过。', 'warn');
+      return null;
+    }
+    await addLog(`RegisterExt：完成回写失败，流程将继续：${getErrorMessage(error)}`, 'warn');
+    return null;
+  }
 }
 
 function isLuckmailProvider(stateOrProvider) {
@@ -11713,6 +11864,12 @@ async function completeNodeFromBackground(nodeId, payload = {}) {
     throw new Error('completeNodeFromBackground 缺少 nodeId。');
   }
   if (stopRequested) {
+    const stoppedState = await getState();
+    await completeRegisterManagerRunForState(stoppedState, {
+      status: 'stopped',
+      reason: STOP_ERROR_MESSAGE,
+      failedNodeId: normalizedNodeId,
+    });
     await setNodeStatus(normalizedNodeId, 'stopped');
     await appendManualAccountRunRecordIfNeeded(`node:${normalizedNodeId}:stopped`, null, STOP_ERROR_MESSAGE);
     notifyNodeError(normalizedNodeId, STOP_ERROR_MESSAGE);
@@ -11724,6 +11881,9 @@ async function completeNodeFromBackground(nodeId, payload = {}) {
   const completionState = normalizedNodeId === lastNodeId ? latestState : null;
   await setNodeStatus(normalizedNodeId, 'completed');
   await addLog('已完成', 'ok', { nodeId: normalizedNodeId });
+  if (normalizedNodeId === 'wait-registration-success') {
+    await completeRegisterManagerRunForState(latestState, { status: 'success' });
+  }
 
   if (normalizedNodeId === lastNodeId) {
     notifyNodeComplete(normalizedNodeId, payload);
@@ -11746,6 +11906,12 @@ async function failNodeFromBackground(nodeId, errorLike = '未知错误') {
   }
   const message = getErrorMessage(errorLike) || '未知错误';
   if (stopRequested || isStopError(errorLike)) {
+    const stoppedState = await getState();
+    await completeRegisterManagerRunForState(stoppedState, {
+      status: 'stopped',
+      reason: message || STOP_ERROR_MESSAGE,
+      failedNodeId: normalizedNodeId,
+    });
     await setNodeStatus(normalizedNodeId, 'stopped');
     await addLog('已被用户停止', 'warn', { nodeId: normalizedNodeId });
     await appendManualAccountRunRecordIfNeeded(`node:${normalizedNodeId}:stopped`, null, message);
@@ -11754,6 +11920,11 @@ async function failNodeFromBackground(nodeId, errorLike = '未知错误') {
   }
 
   const latestState = await getState();
+  await completeRegisterManagerRunForState(latestState, {
+    status: 'failed',
+    reason: message,
+    failedNodeId: normalizedNodeId,
+  });
   await setNodeStatus(normalizedNodeId, 'failed');
   await addLog(`失败：${message}`, 'error', { nodeId: normalizedNodeId });
   await appendManualAccountRunRecordIfNeeded(`node:${normalizedNodeId}:failed`, latestState, message);
@@ -11778,12 +11949,22 @@ async function finalizeDeferredNodeExecutionError(nodeId, error) {
   }
 
   if (isStopError(error)) {
+    await completeRegisterManagerRunForState(latestState, {
+      status: 'stopped',
+      reason: getErrorMessage(error),
+      failedNodeId: normalizedNodeId,
+    });
     await setNodeStatus(normalizedNodeId, 'stopped');
     await addLog('已被用户停止', 'warn', { nodeId: normalizedNodeId });
     await appendManualAccountRunRecordIfNeeded(`node:${normalizedNodeId}:stopped`, latestState, getErrorMessage(error));
     return;
   }
 
+  await completeRegisterManagerRunForState(latestState, {
+    status: 'failed',
+    reason: getErrorMessage(error),
+    failedNodeId: normalizedNodeId,
+  });
   await setNodeStatus(normalizedNodeId, 'failed');
   await addLog(`失败：${getErrorMessage(error)}`, 'error', { nodeId: normalizedNodeId });
   await appendManualAccountRunRecordIfNeeded(`node:${normalizedNodeId}:failed`, latestState, getErrorMessage(error));
@@ -12138,6 +12319,15 @@ async function requestStop(options = {}) {
   await addLog(logMessage, 'warn');
   await broadcastStopToContentScripts();
 
+  const stoppedNodeId = runningNodes[0] || inferredStopNode || '';
+  if (stoppedNodeId) {
+    await completeRegisterManagerRunForState(state, {
+      status: 'stopped',
+      reason: STOP_ERROR_MESSAGE,
+      failedNodeId: stoppedNodeId,
+    });
+  }
+
   if (!runningNodes.length && inferredStopNode) {
     await appendAndBroadcastAccountRunRecord('stopped', state, STOP_ERROR_MESSAGE);
   }
@@ -12275,6 +12465,11 @@ async function executeNode(nodeId, options = {}) {
     executionError = err;
     const errorState = await getState();
     if (isStopError(err)) {
+      await completeRegisterManagerRunForState(errorState, {
+        status: 'stopped',
+        reason: getErrorMessage(err),
+        failedNodeId: normalizedNodeId,
+      });
       await setNodeStatus(normalizedNodeId, 'stopped');
       await addLog('已被用户停止', 'warn', { nodeId: normalizedNodeId });
       await appendManualAccountRunRecordIfNeeded(`node:${normalizedNodeId}:stopped`, errorState, getErrorMessage(err));
@@ -12301,6 +12496,11 @@ async function executeNode(nodeId, options = {}) {
       }
     }
     if (!(deferRetryableTransportError && doesNodeUseCompletionSignal(normalizedNodeId, errorState) && isRetryableContentScriptTransportError(err))) {
+      await completeRegisterManagerRunForState(errorState, {
+        status: 'failed',
+        reason: getErrorMessage(err),
+        failedNodeId: normalizedNodeId,
+      });
       await setNodeStatus(normalizedNodeId, 'failed');
       await addLog(`失败：${err.message}`, 'error', { nodeId: normalizedNodeId });
       await appendManualAccountRunRecordIfNeeded(`node:${normalizedNodeId}:failed`, errorState, getErrorMessage(err));
@@ -13212,6 +13412,24 @@ function shouldStopEmailAutoFetchRetries(generator, error) {
 
 async function ensureAutoEmailReady(targetRun, totalRuns, attemptRuns) {
   const currentState = await getState();
+  if (isRegisterManagerProvider(currentState)) {
+    const updates = {
+      email: null,
+      registrationEmailState: { ...DEFAULT_REGISTRATION_EMAIL_STATE },
+      registerExtRunId: '',
+      registerExtAccountId: null,
+      registerExtCompletedAt: 0,
+      registerExtCompletionStatus: '',
+    };
+    await setState(updates);
+    broadcastDataUpdate(updates);
+    await addLog(
+      `=== 目标 ${targetRun}/${totalRuns} 轮：RegisterExt API 服务已启用，将在注册步骤自动领取邮箱（第 ${attemptRuns} 次尝试）===`,
+      'info'
+    );
+    return null;
+  }
+
   if (isHotmailProvider(currentState)) {
     const account = await ensureHotmailAccountForFlow({
       allowAllocate: true,
@@ -13343,6 +13561,24 @@ async function ensureAutoEmailReady(targetRun, totalRuns, attemptRuns) {
 
 async function ensureAutoEmailReady(targetRun, totalRuns, attemptRuns) {
   const currentState = await getState();
+  if (isRegisterManagerProvider(currentState)) {
+    const updates = {
+      email: null,
+      registrationEmailState: { ...DEFAULT_REGISTRATION_EMAIL_STATE },
+      registerExtRunId: '',
+      registerExtAccountId: null,
+      registerExtCompletedAt: 0,
+      registerExtCompletionStatus: '',
+    };
+    await setState(updates);
+    broadcastDataUpdate(updates);
+    await addLog(
+      `=== 目标 ${targetRun}/${totalRuns} 轮：RegisterExt API 服务已启用，将在注册步骤自动领取邮箱（第 ${attemptRuns} 次尝试）===`,
+      'info'
+    );
+    return null;
+  }
+
   if (isHotmailProvider(currentState)) {
     const account = await ensureHotmailAccountForFlow({
       allowAllocate: true,
@@ -14053,6 +14289,7 @@ const signupFlowHelpers = self.MultiPageSignupFlowHelpers?.createSignupFlowHelpe
   addLog,
   buildGeneratedAliasEmail,
   chrome,
+  claimRegisterManagerAccount,
   ensureContentScriptReadyOnTab,
   ensureHotmailAccountForFlow,
   ensureMail2925AccountForFlow,
@@ -14073,6 +14310,7 @@ const signupFlowHelpers = self.MultiPageSignupFlowHelpers?.createSignupFlowHelpe
   isRetryableContentScriptTransportError,
   isHotmailProvider,
   isLuckmailProvider,
+  isRegisterManagerProvider,
   isSignupPasswordPageUrl,
   isTabAlive,
   persistRegistrationEmailState,
@@ -14115,6 +14353,7 @@ const verificationFlowHelpers = self.MultiPageBackgroundVerificationFlow?.create
   getState,
   getTabId,
   HOTMAIL_PROVIDER,
+  isRegisterManagerProvider,
   isMail2925LimitReachedError,
   isRetryableContentScriptTransportError,
   isStopError,
@@ -14125,6 +14364,7 @@ const verificationFlowHelpers = self.MultiPageBackgroundVerificationFlow?.create
   pollCloudMailVerificationCode,
   pollHotmailVerificationCode,
   pollLuckmailVerificationCode,
+  pollRegisterManagerRunCode,
   sendToContentScript,
   sendToContentScriptResilient,
   sendToMailContentScriptResilient,

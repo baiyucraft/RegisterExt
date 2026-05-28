@@ -21,6 +21,7 @@
       getState,
       getTabId,
       HOTMAIL_PROVIDER,
+      isRegisterManagerProvider = () => false,
       isMail2925LimitReachedError,
       isStopError,
       LUCKMAIL_PROVIDER,
@@ -30,6 +31,7 @@
       pollCloudMailVerificationCode,
       pollHotmailVerificationCode,
       pollLuckmailVerificationCode,
+      pollRegisterManagerRunCode,
       sendToContentScript,
       sendToContentScriptResilient,
       sendToMailContentScriptResilient,
@@ -951,6 +953,19 @@
         ...cleanPollOverrides
       } = pollOverrides;
 
+      if (isRegisterManagerProvider(mail)) {
+        const payload = {
+          ...getVerificationPollPayload(step, state),
+          ...cleanPollOverrides,
+        };
+        if (!state?.registerExtRunId) {
+          throw new Error('RegisterExt runId 为空，无法通过 register-manager API 轮询验证码。');
+        }
+        if (typeof pollRegisterManagerRunCode !== 'function') {
+          throw new Error('RegisterExt API 读码方法未初始化。');
+        }
+        return pollRegisterManagerRunCode(state.registerExtRunId, payload);
+      }
       if (mail.provider === HOTMAIL_PROVIDER) {
         const hotmailPollConfig = getHotmailVerificationPollConfig(step);
         const timedPoll = await applyMailPollingTimeBudget(step, {

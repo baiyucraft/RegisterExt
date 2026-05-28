@@ -6,6 +6,7 @@
       addLog,
       buildGeneratedAliasEmail,
       chrome,
+      claimRegisterManagerAccount,
       ensureContentScriptReadyOnTab,
       ensureHotmailAccountForFlow,
       ensureMail2925AccountForFlow,
@@ -14,6 +15,7 @@
       isGeneratedAliasProvider,
       isReusableGeneratedAliasEmail,
       isHotmailProvider,
+      isRegisterManagerProvider = () => false,
       isRetryableContentScriptTransportError = () => false,
       isLuckmailProvider,
       isSignupEmailVerificationPageUrl,
@@ -322,6 +324,8 @@
           await persistRegistrationEmailState(state, resolvedEmail, {
             source: 'flow',
             preserveAccountIdentity: Boolean(options?.preserveAccountIdentity),
+            runId: options?.runId || null,
+            accountId: options?.accountId || null,
           });
         }
         return;
@@ -342,7 +346,14 @@
     async function resolveSignupEmailForFlow(state, options = {}) {
       let resolvedEmail = state.email;
       let generatedEmailAlreadyPersisted = false;
-      if (isHotmailProvider(state)) {
+      let registerManagerClaim = null;
+      if (isRegisterManagerProvider(state)) {
+        if (typeof claimRegisterManagerAccount !== 'function') {
+          throw new Error('RegisterExt API 未初始化，无法领取 register-manager 邮箱。');
+        }
+        registerManagerClaim = await claimRegisterManagerAccount(state, options);
+        resolvedEmail = registerManagerClaim?.account?.email || '';
+      } else if (isHotmailProvider(state)) {
         const preserveAccountIdentity = Boolean(options?.preserveAccountIdentity);
         const account = await ensureHotmailAccountForFlow({
           allowAllocate: true,
@@ -380,6 +391,8 @@
         await persistResolvedSignupEmail(resolvedEmail, state, {
           ...options,
           generatedEmailAlreadyPersisted,
+          runId: registerManagerClaim?.runId || null,
+          accountId: registerManagerClaim?.account?.accountId || null,
         });
       }
 

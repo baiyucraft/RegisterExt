@@ -427,6 +427,32 @@
       };
     }
 
+    async function completeRegisterManagerRegistrationRun(state = {}, result = {}, options = {}) {
+      const runId = String(state?.registerExtRunId || '').trim();
+      if (!runId) {
+        return null;
+      }
+      if (state?.registerExtCompletedAt || state?.registerExtCompletionStatus) {
+        return null;
+      }
+      const completeRun = options.completeRun;
+      if (typeof completeRun !== 'function') {
+        throw new Error('RegisterExt completeRun 方法未初始化。');
+      }
+      const status = String(result?.status || '').trim().toLowerCase() || 'failed';
+      const payload = {
+        status,
+      };
+      if (status === 'success') {
+        payload.gptPassword = String(state?.password || state?.customPassword || '').trim();
+      } else {
+        payload.reason = String(result?.reason || result?.error || '').trim();
+        if (result?.failedStep !== undefined) payload.failedStep = result.failedStep;
+        if (result?.failedNodeId) payload.failedNodeId = result.failedNodeId;
+      }
+      return completeRun(runId, payload);
+    }
+
     return {
       DEFAULT_ACTIVE_FLOW_ID,
       OPENAI_FLOW_FIELD_GROUPS,
@@ -435,6 +461,7 @@
       buildDefaultRuntimeState: buildRuntimeStateDefault,
       buildSessionStatePatch,
       buildStateView,
+      completeRegisterManagerRegistrationRun,
       ensureRuntimeState,
     };
   }

@@ -280,6 +280,11 @@ const inputGoPayOtp = document.getElementById('input-gopay-otp');
 const rowGoPayPin = document.getElementById('row-gopay-pin');
 const inputGoPayPin = document.getElementById('input-gopay-pin');
 const selectMailProvider = document.getElementById('select-mail-provider');
+const inputRegisterManagerApiBaseUrl = document.getElementById('input-register-manager-api-base-url');
+const inputRegisterManagerGroupName = document.getElementById('input-register-manager-group-name');
+const rowRegisterManagerAccountPicker = document.getElementById('row-register-manager-account-picker');
+const selectRegisterManagerAccount = document.getElementById('select-register-manager-account');
+const btnRefreshRegisterManagerAccounts = document.getElementById('btn-refresh-register-manager-accounts');
 const btnMailLogin = document.getElementById('btn-mail-login');
 const rowCustomMailProviderPool = document.getElementById('row-custom-mail-provider-pool');
 const inputCustomMailProviderPool = document.getElementById('input-custom-mail-provider-pool');
@@ -1132,6 +1137,11 @@ const ICLOUD_PROVIDER = 'icloud';
 const GMAIL_PROVIDER = 'gmail';
 const GMAIL_ALIAS_GENERATOR = 'gmail-alias';
 const HOTMAIL_PROVIDER = 'hotmail-api';
+const REGISTER_MANAGER_MAIL_PROVIDER = 'register-manager-api';
+const LEGACY_REGISTER_MANAGER_API_BASE_URLS = new Set([
+  'http://127.0.0.1:1455/api/extension/RegisterExt',
+]);
+const DEFAULT_REGISTER_MANAGER_API_BASE_URL = 'http://192.168.31.199:1456/api/extension/RegisterExt';
 const LUCKMAIL_PROVIDER = 'luckmail-api';
 const CLOUDFLARE_TEMP_EMAIL_PROVIDER = 'cloudflare-temp-email';
 const CLOUD_MAIL_PROVIDER = 'cloudmail';
@@ -3134,13 +3144,18 @@ function normalizeHotmailAliasEnabledValue(value) {
 
 function normalizeSupportedMailProvider(value = '') {
   const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === CLOUDFLARE_TEMP_EMAIL_PROVIDER) {
-    return CLOUDFLARE_TEMP_EMAIL_PROVIDER;
+  if (normalized === REGISTER_MANAGER_MAIL_PROVIDER) {
+    return REGISTER_MANAGER_MAIL_PROVIDER;
   }
-  if (normalized === CLOUD_MAIL_PROVIDER) {
-    return CLOUD_MAIL_PROVIDER;
+  return REGISTER_MANAGER_MAIL_PROVIDER;
+}
+
+function normalizeRegisterManagerSelectedAccountId(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
   }
-  return HOTMAIL_PROVIDER;
+  const numeric = Number(value);
+  return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : null;
 }
 
 function normalizeVerificationResendCount(value, fallback) {
@@ -4479,6 +4494,10 @@ function collectSettingsPayload() {
       customPassword: inputPassword.value,
     }),
     mailProvider: supportedMailProviderNormalizer(selectMailProvider?.value || latestState?.mailProvider),
+    registerManagerApiBaseUrl: normalizeRegisterManagerApiBaseUrl(inputRegisterManagerApiBaseUrl?.value),
+    registerManagerGroupName: String(inputRegisterManagerGroupName?.value || '').trim(),
+    registerExtSelectedAccountId: normalizeRegisterManagerSelectedAccountId(selectRegisterManagerAccount?.value),
+    registerExtSelectedEmail: String(selectRegisterManagerAccount?.selectedOptions?.[0]?.dataset?.email || '').trim(),
     mail2925Mode: getSelectedMail2925Mode(),
     mail2925UseAccountPool,
     currentMail2925AccountId: String(latestState?.currentMail2925AccountId || '').trim(),
@@ -11117,6 +11136,16 @@ function applySettingsState(state) {
     inputCustomEmailPool.value = restoredCustomEmailPoolEntries.join('\n');
   }
   setHotmailServiceMode(state?.hotmailServiceMode);
+  if (inputRegisterManagerApiBaseUrl) {
+    inputRegisterManagerApiBaseUrl.value = normalizeRegisterManagerApiBaseUrl(state?.registerManagerApiBaseUrl);
+  }
+  if (inputRegisterManagerGroupName) {
+    inputRegisterManagerGroupName.value = String(state?.registerManagerGroupName || '').trim();
+  }
+  if (rowRegisterManagerAccountPicker) {
+    rowRegisterManagerAccountPicker.style.display = restoredMailProvider === REGISTER_MANAGER_MAIL_PROVIDER ? '' : 'none';
+  }
+  setRegisterManagerAccountOptions([], state?.registerExtSelectedAccountId);
   inputHotmailRemoteBaseUrl.value = state?.hotmailRemoteBaseUrl || '';
   inputHotmailLocalBaseUrl.value = state?.hotmailLocalBaseUrl || '';
   if (typeof inputHotmailAliasEnabled !== 'undefined' && inputHotmailAliasEnabled) {
@@ -11630,7 +11659,7 @@ function renderUpdateReleaseList(releases = []) {
 
     const version = document.createElement('span');
     version.className = 'update-release-version';
-    version.textContent = release.displayVersion || `GuJumpgate ${release.version}`;
+    version.textContent = release.displayVersion || `RegisterExt ${release.version}`;
     titleRow.appendChild(version);
 
     if (release.title) {
@@ -11732,21 +11761,21 @@ function renderReleaseSnapshot(snapshot) {
     }
 
     case 'ignored': {
-      extensionUpdateStatus.textContent = localVersionText || 'GuJumpgate 0.0';
+      extensionUpdateStatus.textContent = localVersionText || 'RegisterExt 0.0';
       extensionUpdateStatus.classList.add('is-version-label');
       resetUpdateCard();
       break;
     }
 
     case 'latest': {
-      extensionUpdateStatus.textContent = localVersionText || 'GuJumpgate 0.0';
+      extensionUpdateStatus.textContent = localVersionText || 'RegisterExt 0.0';
       extensionUpdateStatus.classList.add('is-version-label');
       resetUpdateCard();
       break;
     }
 
     case 'empty': {
-      extensionUpdateStatus.textContent = localVersionText || 'GuJumpgate 0.0';
+      extensionUpdateStatus.textContent = localVersionText || 'RegisterExt 0.0';
       extensionUpdateStatus.classList.add('is-version-label');
       resetUpdateCard();
       break;
@@ -11754,7 +11783,7 @@ function renderReleaseSnapshot(snapshot) {
 
     case 'error':
     default: {
-      extensionUpdateStatus.textContent = localVersionText || 'GuJumpgate 0.0';
+      extensionUpdateStatus.textContent = localVersionText || 'RegisterExt 0.0';
       extensionUpdateStatus.classList.add('is-version-label', 'is-check-failed');
       extensionVersionMeta.textContent = snapshot?.errorMessage || 'GitHub Releases 检查失败';
       extensionVersionMeta.hidden = false;
@@ -11777,8 +11806,8 @@ async function initializeReleaseInfo() {
 
   const localVersion = sidepanelUpdateService?.getLocalVersionLabel?.(chrome.runtime.getManifest())
     || chrome.runtime.getManifest()?.version_name
-    || (chrome.runtime.getManifest()?.version ? `GuJumpgate  V${chrome.runtime.getManifest().version}` : '');
-  extensionUpdateStatus.textContent = localVersion || 'GuJumpgate 0.0';
+    || (chrome.runtime.getManifest()?.version ? `RegisterExt V${chrome.runtime.getManifest().version}` : '');
+  extensionUpdateStatus.textContent = localVersion || 'RegisterExt 0.0';
   extensionUpdateStatus.classList.remove('is-update-available', 'is-check-failed');
   extensionUpdateStatus.classList.add('is-version-label');
   extensionVersionMeta.hidden = true;
@@ -11962,6 +11991,115 @@ function isCustomMailProvider(provider = selectMailProvider.value) {
 
 function isLuckmailProvider(provider = selectMailProvider.value) {
   return String(provider || '').trim().toLowerCase() === LUCKMAIL_PROVIDER;
+}
+
+function isRegisterManagerProvider(provider = selectMailProvider.value) {
+  return String(provider || '').trim().toLowerCase() === REGISTER_MANAGER_MAIL_PROVIDER;
+}
+
+function normalizeRegisterManagerApiBaseUrl(value = '') {
+  const normalized = String(value || '').trim().replace(/\/+$/, '');
+  if (!normalized || LEGACY_REGISTER_MANAGER_API_BASE_URLS.has(normalized)) {
+    return DEFAULT_REGISTER_MANAGER_API_BASE_URL;
+  }
+  return normalized;
+}
+
+function createRegisterManagerApiClientFromSettings() {
+  if (!window.RegisterManagerApi?.createRegisterManagerApiClient) {
+    throw new Error('RegisterExt API client 未加载。');
+  }
+  return window.RegisterManagerApi.createRegisterManagerApiClient({
+    baseUrl: normalizeRegisterManagerApiBaseUrl(inputRegisterManagerApiBaseUrl?.value || latestState?.registerManagerApiBaseUrl),
+  });
+}
+
+function getRegisterManagerGroupNameFromSettings() {
+  return String(inputRegisterManagerGroupName?.value || latestState?.registerManagerGroupName || '').trim();
+}
+
+function formatRegisterManagerAccountOption(account = {}) {
+  const email = String(account.email || '').trim();
+  const groupName = String(account.groupName || '').trim();
+  const stage = String(account.accountStage || '').trim();
+  return [email, groupName, stage].filter(Boolean).join(' / ') || `账号 ${account.accountId}`;
+}
+
+function setRegisterManagerAccountOptions(items = [], selectedAccountId = latestState?.registerExtSelectedAccountId) {
+  if (!selectRegisterManagerAccount) {
+    return;
+  }
+  const selectedId = normalizeRegisterManagerSelectedAccountId(selectedAccountId);
+  const selectedEmail = String(latestState?.registerExtSelectedEmail || '').trim();
+  selectRegisterManagerAccount.innerHTML = '';
+  const autoOption = document.createElement('option');
+  autoOption.value = '';
+  autoOption.textContent = '自动选择未注册邮箱';
+  selectRegisterManagerAccount.appendChild(autoOption);
+
+  let hasSelected = false;
+  (Array.isArray(items) ? items : []).forEach((account) => {
+    const accountId = normalizeRegisterManagerSelectedAccountId(account?.accountId);
+    if (!accountId) return;
+    const option = document.createElement('option');
+    option.value = String(accountId);
+    option.dataset.email = String(account.email || '').trim();
+    option.textContent = formatRegisterManagerAccountOption(account);
+    selectRegisterManagerAccount.appendChild(option);
+    if (selectedId === accountId) {
+      hasSelected = true;
+    }
+  });
+
+  if (selectedId && !hasSelected) {
+    const preservedOption = document.createElement('option');
+    preservedOption.value = String(selectedId);
+    preservedOption.dataset.email = selectedEmail;
+    preservedOption.textContent = selectedEmail
+      ? `${selectedEmail} / 已选择`
+      : `已选择账号 ${selectedId}`;
+    selectRegisterManagerAccount.appendChild(preservedOption);
+    hasSelected = true;
+  }
+
+  selectRegisterManagerAccount.value = hasSelected ? String(selectedId) : '';
+}
+
+async function refreshRegisterManagerAccountCandidates(options = {}) {
+  if (!selectRegisterManagerAccount) {
+    return [];
+  }
+  const { silent = false } = options;
+  const previousDisabled = Boolean(btnRefreshRegisterManagerAccounts?.disabled);
+  if (btnRefreshRegisterManagerAccounts) {
+    btnRefreshRegisterManagerAccounts.disabled = true;
+    btnRefreshRegisterManagerAccounts.textContent = '刷新中';
+  }
+  try {
+    const client = createRegisterManagerApiClientFromSettings();
+    const result = await client.listCandidates({
+      page: 1,
+      pageSize: 100,
+      groupName: getRegisterManagerGroupNameFromSettings() || undefined,
+    });
+    const items = Array.isArray(result?.items) ? result.items : [];
+    setRegisterManagerAccountOptions(items);
+    if (!silent) {
+      showToast(`已刷新 ${items.length} 个候选邮箱`, 'success', 1600);
+    }
+    return items;
+  } catch (err) {
+    if (!silent) {
+      showToast(`候选邮箱刷新失败：${err.message}`, 'error');
+    }
+    setRegisterManagerAccountOptions([]);
+    return [];
+  } finally {
+    if (btnRefreshRegisterManagerAccounts) {
+      btnRefreshRegisterManagerAccounts.disabled = previousDisabled;
+      btnRefreshRegisterManagerAccounts.textContent = '刷新';
+    }
+  }
 }
 
 function isIcloudMailProvider(provider = selectMailProvider.value) {
@@ -12460,6 +12598,7 @@ function updateMailProviderUI() {
   const useMail2925AccountPool = useMail2925 && Boolean(inputMail2925UseAccountPool?.checked);
   const mail2925Mode = getSelectedMail2925Mode();
   const useHotmail = selectMailProvider.value === 'hotmail-api';
+  const useRegisterManagerApi = isRegisterManagerProvider();
   const useLuckmail = canShowLuckmail && isLuckmailProvider();
   const useCustomEmail = isCustomMailProvider();
   const useCloudflareTempEmailProvider = selectMailProvider.value === 'cloudflare-temp-email';
@@ -12470,7 +12609,7 @@ function updateMailProviderUI() {
   const customEmailPoolGenerator = typeof CUSTOM_EMAIL_POOL_GENERATOR === 'string'
     ? CUSTOM_EMAIL_POOL_GENERATOR
     : 'custom-pool';
-  const allowedEmailGenerators = useHotmail || useLuckmail || useCustomEmail
+  const allowedEmailGenerators = useRegisterManagerApi || useHotmail || useLuckmail || useCustomEmail
     ? new Set()
     : (useCloudflareTempEmailProvider
       ? new Set(['cloudflare-temp-email'])
@@ -12505,7 +12644,7 @@ function updateMailProviderUI() {
   if (useCloudMailProvider && String(selectEmailGenerator?.value || '').trim().toLowerCase() !== 'cloudmail') {
     selectEmailGenerator.value = 'cloudmail';
   }
-  const useEmailGenerator = !useHotmail && !useLuckmail && !useCustomEmail && (!useGeneratedAlias || useGmail);
+  const useEmailGenerator = !useRegisterManagerApi && !useHotmail && !useLuckmail && !useCustomEmail && (!useGeneratedAlias || useGmail);
   const aliasUiCopy = useGeneratedAlias
     ? getManagedAliasProviderUiCopy(selectMailProvider.value, mail2925Mode)
     : null;
@@ -12620,7 +12759,10 @@ function updateMailProviderUI() {
   }
 
   if (hotmailSection) {
-    hotmailSection.style.display = useHotmail ? '' : 'none';
+    hotmailSection.style.display = useHotmail && !useRegisterManagerApi ? '' : 'none';
+  }
+  if (rowRegisterManagerAccountPicker) {
+    rowRegisterManagerAccountPicker.style.display = useRegisterManagerApi ? '' : 'none';
   }
   if (mail2925Section) {
     mail2925Section.style.display = useMail2925AccountPool ? '' : 'none';
@@ -12640,7 +12782,8 @@ function updateMailProviderUI() {
   }
   inputEmailPrefix.style.display = '';
   inputEmailPrefix.readOnly = false;
-  selectEmailGenerator.disabled = useHotmail
+  selectEmailGenerator.disabled = useRegisterManagerApi
+    || useHotmail
     || useLuckmail
     || useCustomEmail
     || useCloudflareTempEmailProvider
@@ -12672,9 +12815,11 @@ function updateMailProviderUI() {
   if (typeof rowOutlookAliasMax !== 'undefined' && rowOutlookAliasMax) {
     rowOutlookAliasMax.style.display = useHotmail && hotmailAliasEnabled ? '' : 'none';
   }
-  btnFetchEmail.hidden = useHotmail || useLuckmail || useCustomEmail || useCustomEmailPool;
-  inputEmail.readOnly = useHotmail || useLuckmail;
-  inputEmail.placeholder = useHotmail
+  btnFetchEmail.hidden = useRegisterManagerApi || useHotmail || useLuckmail || useCustomEmail || useCustomEmailPool;
+  inputEmail.readOnly = useRegisterManagerApi || useHotmail || useLuckmail;
+  inputEmail.placeholder = useRegisterManagerApi
+    ? '由 register-manager API 领取'
+    : useHotmail
     ? '由 微软邮箱账户池 自动分配'
     : (useLuckmail
       ? '步骤 3 自动购买 LuckMail 邮箱并回填'
@@ -12682,7 +12827,7 @@ function updateMailProviderUI() {
   if (useGmail && useGeneratedAlias) {
     inputEmail.placeholder = '步骤 3 自动生成 Gmail +tag 邮箱并回填';
   }
-  if (!useHotmail && !useLuckmail) {
+  if (!useRegisterManagerApi && !useHotmail && !useLuckmail) {
     inputEmail.placeholder = uiCopy.placeholder;
   }
   if (useCustomEmail && useCustomMailProviderPool) {
@@ -12693,7 +12838,9 @@ function updateMailProviderUI() {
     btnFetchEmail.textContent = uiCopy.buttonLabel;
   }
   if (autoHintText) {
-    autoHintText.textContent = useHotmail
+    autoHintText.textContent = useRegisterManagerApi
+      ? '请先确认 register-manager API 服务可用'
+      : useHotmail
       ? '请先校验并选择一个 Hotmail 账号'
       : (useLuckmail
         ? '步骤 3 会自动购买 LuckMail 邮箱并用于收码'
@@ -12735,7 +12882,9 @@ function updateMailProviderUI() {
       || '目标邮箱';
     autoHintText.textContent = `iCloud ${isIcloudComCnHost ? 'com.cn' : ''} 当前使用转发收码：第 4/8 步会从 ${forwardProviderLabel} 轮询验证码。`;
   }
-  if (useHotmail) {
+  if (useRegisterManagerApi) {
+    inputEmail.value = latestState?.email || '';
+  } else if (useHotmail) {
     inputEmail.value = getCurrentHotmailEmail();
   } else if (useLuckmail) {
     inputEmail.value = getCurrentLuckmailEmail();
@@ -15432,6 +15581,55 @@ selectMailProvider.addEventListener('change', async () => {
   if (nextProvider === LUCKMAIL_PROVIDER) {
     queueLuckmailPurchaseRefresh();
   }
+  if (nextProvider === REGISTER_MANAGER_MAIL_PROVIDER) {
+    refreshRegisterManagerAccountCandidates({ silent: true }).catch(() => { });
+  }
+  markSettingsDirty(true);
+  saveSettings({ silent: true }).catch(() => { });
+});
+
+btnRefreshRegisterManagerAccounts?.addEventListener('click', async () => {
+  await refreshRegisterManagerAccountCandidates();
+});
+
+async function handleRegisterManagerGroupNameChange() {
+  const nextGroupName = String(inputRegisterManagerGroupName?.value || '').trim();
+  const previousGroupName = String(latestState?.registerManagerGroupName || '').trim();
+  if (nextGroupName === previousGroupName) {
+    return;
+  }
+  if (inputRegisterManagerGroupName) {
+    inputRegisterManagerGroupName.value = nextGroupName;
+  }
+  if (selectRegisterManagerAccount) {
+    selectRegisterManagerAccount.value = '';
+  }
+  syncLatestState({
+    registerManagerGroupName: nextGroupName,
+    registerExtSelectedAccountId: null,
+    registerExtSelectedEmail: '',
+  });
+  setRegisterManagerAccountOptions([], null);
+  markSettingsDirty(true);
+  await saveSettings({ silent: true }).catch(() => { });
+  if (isRegisterManagerProvider()) {
+    await refreshRegisterManagerAccountCandidates({ silent: true }).catch(() => { });
+  }
+}
+
+inputRegisterManagerGroupName?.addEventListener('blur', () => {
+  handleRegisterManagerGroupNameChange().catch(() => { });
+});
+
+inputRegisterManagerGroupName?.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter') {
+    return;
+  }
+  event.preventDefault();
+  handleRegisterManagerGroupNameChange().catch(() => { });
+});
+
+selectRegisterManagerAccount?.addEventListener('change', () => {
   markSettingsDirty(true);
   saveSettings({ silent: true }).catch(() => { });
 });
