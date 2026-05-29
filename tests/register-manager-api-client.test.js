@@ -30,6 +30,7 @@ test('RegisterExt API client calls register-manager endpoints only', async () =>
   await client.getRunCode('run-1', { excludeCodes: ['123456'] });
   await client.completeRun('run-1', { status: 'success', gptPassword: 'secret' });
 
+  assert.equal(calls[0].url, 'http://192.168.31.199:1456/api/extension/RegisterExt/health');
   assert.deepEqual(calls.map((call) => new URL(call.url).pathname), [
     '/api/extension/RegisterExt/health',
     '/api/extension/RegisterExt/accounts/candidates',
@@ -46,6 +47,30 @@ test('RegisterExt API client calls register-manager endpoints only', async () =>
   );
   const candidatesUrl = new URL(calls[1].url);
   assert.equal(candidatesUrl.searchParams.get('groupName'), 'seed-a');
+});
+
+test('RegisterExt API client ignores legacy local base URLs', async () => {
+  for (const baseUrl of [
+    '',
+    'http://127.0.0.1:1455/api/extension/RegisterExt',
+    'http://127.0.0.1:1455/api/extension/RegisterExt/',
+    'http://localhost:1455/api/extension/RegisterExt',
+    'http://127.0.0.1:1456/api/extension/RegisterExt',
+    'http://localhost:1456/api/extension/RegisterExt',
+    'https://example.invalid/api/extension/RegisterExt',
+  ]) {
+    const calls = [];
+    const client = createRegisterManagerApiClient({
+      baseUrl,
+      fetchImpl: async (url, options = {}) => {
+        calls.push({ url, options });
+        return jsonResponse({ ok: true, capabilities: [] });
+      },
+    });
+
+    await client.health();
+    assert.equal(calls[0].url, 'http://192.168.31.199:1456/api/extension/RegisterExt/health');
+  }
 });
 
 test('RegisterExt API client defaults to deployed register-manager entrypoint', async () => {

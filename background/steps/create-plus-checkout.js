@@ -1513,10 +1513,6 @@ function FindProxyForURL(url, host) {
       selectedSmsEntry = null,
     } = {}) {
       return {
-        stateHostedCheckoutPhoneNumber: String(state?.hostedCheckoutPhoneNumber || '').trim(),
-        localHostedCheckoutPhoneNumber: String(stored?.hostedCheckoutPhoneNumber || '').trim(),
-        stateHostedCheckoutVerificationUrl: String(state?.hostedCheckoutVerificationUrl || '').trim(),
-        localHostedCheckoutVerificationUrl: String(stored?.hostedCheckoutVerificationUrl || '').trim(),
         stateHostedCheckoutSmsPoolTextLines: parseHostedCheckoutSmsPoolEntries(state?.hostedCheckoutSmsPoolText || '').length,
         localHostedCheckoutSmsPoolTextLines: parseHostedCheckoutSmsPoolEntries(stored?.hostedCheckoutSmsPoolText || '').length,
         effectiveHostedSmsPoolEntries: Array.isArray(poolEntries) ? poolEntries.length : 0,
@@ -1713,10 +1709,6 @@ function FindProxyForURL(url, host) {
             : ''
         )
         || ''
-      ).trim() || String(
-        stored?.hostedCheckoutVerificationUrl
-        || state?.hostedCheckoutVerificationUrl
-        || ''
       ).trim();
       const phone = String(
         selectedSmsEntry?.phone
@@ -1725,10 +1717,6 @@ function FindProxyForURL(url, host) {
             ? chooseHostedCheckoutSmsPoolEntry(poolEntries, poolUsage)?.phone
             : ''
         )
-        || ''
-      ).trim() || String(
-        stored?.hostedCheckoutPhoneNumber
-        || state?.hostedCheckoutPhoneNumber
         || ''
       ).trim();
       const hostedCheckoutSmsPoolAutoDisableEnabled = Boolean(

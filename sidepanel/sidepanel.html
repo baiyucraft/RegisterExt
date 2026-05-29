@@ -110,51 +110,6 @@
 
   <section id="data-section">
     <div id="settings-card" class="data-card">
-      <div class="data-row">
-        <span class="data-label">注册</span>
-        <select id="select-flow" class="data-select" aria-label="Flow 选择">
-          <option value="codex" selected>codex</option>
-        </select>
-      </div>
-      <div class="data-row">
-        <span class="data-label">导出至</span>
-        <select id="select-panel-mode" class="data-select">
-          <option value="local-cpa-json" selected>本地CPA JSON</option>
-          <option value="cpa">CPA 面板</option>
-          <option value="sub2api">SUB2API</option>
-          <option value="codex2api">Codex2API</option>
-        </select>
-      </div>
-      <div class="data-row" id="row-account-access-strategy">
-        <span class="data-label">账号接入策略</span>
-        <div class="data-inline">
-          <select id="select-account-access-strategy" class="data-select">
-            <option value="oauth" selected>Oauth</option>
-            <option value="sms_oauth">先手机号注册 Oauth</option>
-            <option value="phone_bind_oauth">后手机号绑定 Oauth</option>
-            <option value="session_json">SESSION JSON导入</option>
-          </select>
-          <span class="setting-caption" id="account-access-strategy-caption"></span>
-        </div>
-      </div>
-      <div class="data-row" id="row-local-cpa-json-plugin-dir" style="display:none;">
-        <span class="data-label">插件目录</span>
-        <input type="text" id="input-local-cpa-json-plugin-dir" class="data-input"
-          placeholder="解压后浏览器插件所在的目录" />
-      </div>
-      <div class="data-row" id="row-local-cpa-json-advanced-toggle" style="display:none;">
-        <span class="data-label">高级</span>
-        <div class="data-inline">
-          <span class="hero-sms-country-note">默认会写入插件目录下的 .cli-proxy-api</span>
-          <button id="btn-toggle-local-cpa-json-auth-dir" class="btn btn-ghost btn-xs data-inline-btn" type="button"
-            aria-expanded="false">展开认证目录</button>
-        </div>
-      </div>
-      <div class="data-row" id="row-local-cpa-json-relative-auth-dir" style="display:none;" hidden>
-        <span class="data-label">认证目录</span>
-        <input type="text" id="input-local-cpa-json-relative-auth-dir" class="data-input"
-          placeholder=".cli-proxy-api" />
-      </div>
         <div id="contribution-mode-panel" class="contribution-mode-panel" hidden>
           <div class="contribution-mode-panel-header">
             <span class="section-label">贡献模式</span>
@@ -186,99 +141,6 @@
           <button id="btn-start-contribution" class="btn btn-primary btn-sm" type="button">开始贡献</button>
           <button id="btn-open-contribution-upload" class="btn btn-outline btn-sm" type="button">已有认证文件？自行处理</button>
           <button id="btn-exit-contribution-mode" class="btn btn-ghost btn-sm" type="button">退出贡献模式</button>
-        </div>
-      </div>
-      <div class="data-row" id="row-vps-url">
-        <span class="data-label">CPA</span>
-        <div class="input-with-icon">
-          <input type="password" id="input-vps-url" class="data-input data-input-with-icon"
-            placeholder="http://ip:port/management.html#/oauth" />
-          <button id="btn-toggle-vps-url" class="input-icon-btn" type="button" aria-label="显示 CPA 地址"
-            title="显示 CPA 地址"></button>
-        </div>
-      </div>
-      <div class="data-row" id="row-vps-password">
-        <span class="data-label">管理密钥</span>
-        <div class="input-with-icon">
-          <input type="password" id="input-vps-password" class="data-input data-input-with-icon"
-            placeholder="请输入 CPA 管理密钥" />
-          <button id="btn-toggle-vps-password" class="input-icon-btn" type="button" aria-label="显示管理密钥"
-            title="显示管理密钥"></button>
-        </div>
-      </div>
-      <div class="data-row" id="row-local-cpa-step9-mode">
-        <span class="data-label">回调方式</span>
-        <div id="local-cpa-step9-mode-group" class="choice-group" role="group" aria-label="回调方式">
-          <button type="button" class="choice-btn" data-local-cpa-step9-mode="submit">服务器部署</button>
-          <button type="button" class="choice-btn" data-local-cpa-step9-mode="bypass">本地部署</button>
-        </div>
-      </div>
-      <div class="data-row" id="row-sub2api-url" style="display:none;">
-        <span class="data-label">SUB2API</span>
-        <input type="text" id="input-sub2api-url" class="data-input"
-          placeholder="https://your-sub2api-domain/admin/accounts" />
-      </div>
-      <div class="data-row" id="row-sub2api-email" style="display:none;">
-        <span class="data-label">账号</span>
-        <input type="text" id="input-sub2api-email" class="data-input" placeholder="请输入 SUB2API 登录邮箱" />
-      </div>
-      <div class="data-row" id="row-sub2api-password" style="display:none;">
-        <span class="data-label">密码</span>
-        <div class="input-with-icon">
-          <input type="password" id="input-sub2api-password" class="data-input data-input-with-icon"
-            placeholder="请输入 SUB2API 登录密码" />
-          <button id="btn-toggle-sub2api-password" class="input-icon-btn" type="button"
-            data-password-toggle="input-sub2api-password" data-show-label="显示 SUB2API 密码"
-            data-hide-label="隐藏 SUB2API 密码" aria-label="显示 SUB2API 密码" title="显示 SUB2API 密码"></button>
-        </div>
-      </div>
-      <div class="data-row" id="row-sub2api-group" style="display:none;">
-        <span class="data-label">分组</span>
-        <div class="data-inline">
-          <input type="hidden" id="input-sub2api-group" value="codex" />
-          <div id="sub2api-group-picker" class="editable-list-picker">
-            <button id="btn-sub2api-group-menu" class="data-select editable-list-trigger" type="button"
-              aria-haspopup="listbox" aria-expanded="false">
-              <span id="sub2api-group-current" class="truncate">codex</span>
-              <span class="editable-list-caret" aria-hidden="true"></span>
-            </button>
-            <div id="sub2api-group-menu" class="editable-list-menu" role="listbox" hidden></div>
-          </div>
-          <button id="btn-add-sub2api-group" class="btn btn-outline btn-sm data-inline-btn" type="button">添加</button>
-        </div>
-      </div>
-      <div class="data-row" id="row-sub2api-account-priority" style="display:none;">
-        <span class="data-label">优先级</span>
-        <input type="number" id="input-sub2api-account-priority" class="data-input mono" value="1" min="1" step="1" />
-      </div>
-      <div class="data-row" id="row-sub2api-default-proxy" style="display:none;">
-        <span class="data-label">默认代理</span>
-        <input type="text" id="input-sub2api-default-proxy" class="data-input" placeholder="留空则不使用代理；或填写代理名称 / ID" />
-      </div>
-      <div class="data-row" id="row-codex2api-url" style="display:none;">
-        <span class="data-label">Codex2API</span>
-        <input type="text" id="input-codex2api-url" class="data-input"
-          placeholder="http://localhost:8080/admin/accounts" />
-      </div>
-      <div class="data-row" id="row-codex2api-admin-key" style="display:none;">
-        <span class="data-label">管理密钥</span>
-        <div class="input-with-icon">
-          <input type="password" id="input-codex2api-admin-key" class="data-input data-input-with-icon"
-            placeholder="请输入 Codex2API Admin Secret" />
-          <button id="btn-toggle-codex2api-admin-key" class="input-icon-btn" type="button"
-            data-password-toggle="input-codex2api-admin-key" data-show-label="显示 Codex2API 管理密钥"
-            data-hide-label="隐藏 Codex2API 管理密钥" aria-label="显示 Codex2API 管理密钥"
-            title="显示 Codex2API 管理密钥"></button>
-        </div>
-      </div>
-      <div class="data-row module-divider-start" id="row-export-current-session-json">
-        <span class="data-label">导出当前SESSION JSON</span>
-        <div class="data-inline current-session-export-inline">
-          <div class="current-session-export-actions">
-            <button id="btn-export-current-session-cpa-json" class="btn btn-outline btn-sm data-inline-btn" type="button">导出为CPA JSON</button>
-            <button id="btn-export-current-session-sub2-json" class="btn btn-outline btn-sm data-inline-btn" type="button">导出为SUB2 JSON</button>
-          </div>
-          <span class="current-session-export-warning">目前SESSION导出的JSON无法直接使用</span>
         </div>
       </div>
       <div class="data-row" id="row-custom-password">
@@ -357,47 +219,29 @@
           <span id="display-plus-checkout-conversion-proxy-test-result" class="data-value mono plus-checkout-conversion-proxy-test-result">未测试</span>
         </div>
       </div>
-      <div class="data-row" id="row-hosted-checkout-verification-url" style="display:none;">
-        <span class="data-label">验证码接口</span>
-        <input type="text" id="input-hosted-checkout-verification-url" class="data-input"
-          placeholder="https://mail.test.com/api/text-relay/eca_tr_xxxxxxxxx"
-          title="只填基础接口地址，不需要带 ?t= 时间戳参数" />
-      </div>
-      <div class="data-row" id="row-hosted-checkout-manual-fetch" style="display:none;">
-        <span class="data-label">手动取码</span>
-        <div class="data-inline data-value-actions hosted-checkout-manual-fetch-inline">
-          <button id="btn-hosted-checkout-manual-fetch" class="btn btn-outline btn-sm data-inline-btn" type="button">手动获取验证码</button>
-          <span id="display-hosted-checkout-manual-code" class="data-value mono hosted-checkout-manual-fetch-code">未获取</span>
-        </div>
-      </div>
-      <div class="data-row" id="row-hosted-checkout-phone" style="display:none;">
-        <span class="data-label">PayPal 电话(不带+1)</span>
-        <input type="text" id="input-hosted-checkout-phone" class="data-input mono"
-          placeholder="1234567890" />
-      </div>
       <div class="data-row data-check-row" id="row-hosted-checkout-sms-pool" style="display:none;">
         <span class="data-label">PayPal 接码池</span>
         <div class="hotmail-import-box hosted-sms-pool-box">
           <textarea id="input-hosted-checkout-sms-pool" class="data-textarea mono" hidden
-            placeholder="1234567890&#10;&#10;https://mail.test.com/api/text-relay/eca_tr_xxxxxxxxx"></textarea>
+            placeholder="1234567890----https://mail.test.com/api/text-relay/eca_tr_xxxxxxxxx"></textarea>
           <div class="section-mini-header">
             <div class="section-mini-copy">
               <span class="section-label">PayPal 接码池</span>
-              <span class="data-value">号码和验证码接口按行绑定</span>
+              <span class="data-value">每行一个号码和验证码接口</span>
             </div>
             <div class="section-mini-actions">
               <button id="btn-toggle-hosted-sms-pool" class="btn btn-ghost btn-xs" type="button"
-                aria-expanded="false">展开</button>
+                aria-expanded="true">收起</button>
             </div>
           </div>
-          <div id="hosted-sms-pool-shell" class="hosted-sms-pool-shell is-collapsed" hidden>
+          <div id="hosted-sms-pool-shell" class="hosted-sms-pool-shell is-expanded">
             <div class="section-mini-actions hosted-sms-pool-toolbar">
               <button id="btn-hosted-sms-pool-refresh" class="btn btn-ghost btn-xs" type="button">刷新</button>
               <button id="btn-hosted-sms-pool-clear-used" class="btn btn-ghost btn-xs" type="button">清空次数</button>
               <button id="btn-hosted-sms-pool-delete-all" class="btn btn-ghost btn-xs" type="button">全部删除</button>
             </div>
             <textarea id="input-hosted-sms-pool-import" class="data-textarea mono" rows="4"
-              placeholder="1234567890&#10;&#10;https://mail.test.com/api/text-relay/eca_tr_xxxxxxxxx"></textarea>
+              placeholder="1234567890----https://mail.test.com/api/text-relay/eca_tr_xxxxxxxxx"></textarea>
             <div class="data-inline hosted-sms-pool-import-actions">
               <button id="btn-hosted-sms-pool-import" class="btn btn-primary btn-sm" type="button">导入号码</button>
               <label class="hosted-checkout-setting-toggle hosted-sms-pool-auto-disable-toggle" title="开启后，PayPal 接码池号码连续接码失败会被自动禁用，后续选号自动跳过；默认关闭">
@@ -411,7 +255,7 @@
               </label>
             </div>
             <div class="icloud-card">
-              <div id="hosted-sms-pool-summary" class="icloud-summary">导入 PayPal 接码号码，每行一个号码和验证码接口。</div>
+              <div id="hosted-sms-pool-summary" class="icloud-summary">导入 PayPal 接码号码，每行格式为 号码----验证码接口。</div>
               <div class="icloud-toolbar">
                 <input id="input-hosted-sms-pool-search" class="data-input icloud-search" type="text"
                   placeholder="搜索号码 / 接口" />
@@ -598,11 +442,6 @@
             <option value="register-manager-api" selected>register-manager API 服务</option>
           </select>
         </div>
-      </div>
-      <div class="data-row" id="row-register-manager-api-base-url">
-        <span class="data-label">API 服务</span>
-        <input type="text" id="input-register-manager-api-base-url" class="data-input mono"
-          placeholder="http://192.168.31.199:1456/api/extension/RegisterExt" />
       </div>
       <div class="data-row" id="row-register-manager-group-name">
         <span class="data-label">分组筛选</span>

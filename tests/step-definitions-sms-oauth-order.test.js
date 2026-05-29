@@ -43,21 +43,15 @@ test('sms_oauth phone signup flow uses checkout before oauth login', () => {
     { id: 9, key: 'bind-email', title: '绑定邮箱' },
     { id: 10, key: 'fetch-bind-email-code', title: '获取绑定邮箱验证码' },
     { id: 11, key: 'confirm-oauth', title: '自动确认 OAuth' },
-    { id: 12, key: 'platform-verify', title: 'CPA 回调验证' },
+    { id: 12, key: 'platform-verify', title: '平台回调验证' },
   ]));
 });
 
-test('sms_oauth platform-verify keeps original panel titles', () => {
+test('legacy panel modes no longer change platform-verify into JSON upload or export nodes', () => {
   const stepDefinitions = loadStepDefinitionsModule();
-  const cases = [
-    ['cpa', 'platform-verify', 'CPA 回调验证'],
-    ['sub2api', 'platform-verify', 'SUB2API 回调验证'],
-    ['codex2api', 'platform-verify', 'Codex2API 回调验证'],
-    ['local-cpa-json', 'platform-verify', '本地CPA JSON 有RT 导出'],
-    ['local-cpa-json-no-rt', 'local-cpa-json-export', '本地CPA JSON 无RT 导出'],
-  ];
+  const cases = ['cpa', 'sub2api', 'codex2api', 'local-cpa-json', 'local-cpa-json-no-rt'];
 
-  for (const [panelMode, expectedKey, expectedTitle] of cases) {
+  for (const panelMode of cases) {
     const steps = stepDefinitions.getSteps({
       panelMode,
       plusModeEnabled: true,
@@ -65,8 +59,8 @@ test('sms_oauth platform-verify keeps original panel titles', () => {
       signupMethod: 'phone',
     });
     const finalStep = steps[steps.length - 1];
-    assert.equal(finalStep?.key, expectedKey);
-    assert.equal(finalStep?.title, expectedTitle);
+    assert.equal(finalStep?.key, 'platform-verify');
+    assert.equal(finalStep?.title, '平台回调验证');
   }
 });
 
@@ -96,6 +90,6 @@ test('phone_bind_oauth flow uses checkout before oauth login', () => {
     { id: 8, key: 'fetch-login-code', title: '获取登录验证码' },
     { id: 9, key: 'post-login-phone-verification', title: '手机号验证' },
     { id: 10, key: 'confirm-oauth', title: '自动确认 OAuth' },
-    { id: 11, key: 'platform-verify', title: 'CPA 回调验证' },
+    { id: 11, key: 'platform-verify', title: '平台回调验证' },
   ]));
 });

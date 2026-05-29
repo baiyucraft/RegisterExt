@@ -8,9 +8,8 @@
 })(typeof self !== 'undefined' ? self : globalThis, function createRegisterManagerApiModule() {
   const DEFAULT_REGISTER_MANAGER_API_BASE_URL = 'http://192.168.31.199:1456/api/extension/RegisterExt';
 
-  function normalizeBaseUrl(baseUrl = DEFAULT_REGISTER_MANAGER_API_BASE_URL) {
-    const value = String(baseUrl || DEFAULT_REGISTER_MANAGER_API_BASE_URL).trim() || DEFAULT_REGISTER_MANAGER_API_BASE_URL;
-    return value.replace(/\/+$/, '');
+  function normalizeBaseUrl() {
+    return DEFAULT_REGISTER_MANAGER_API_BASE_URL;
   }
 
   function buildUrl(baseUrl, path, query = {}) {

@@ -112,7 +112,7 @@ test('hosted checkout wait seconds are applied before polling verification endpo
     {
       addLog: async (message) => events.push(['log', message]),
       getState: async () => ({
-        hostedCheckoutVerificationUrl: 'http://example.test/api/get_sms?key=test',
+        hostedCheckoutSmsPoolText: '1234567890----http://example.test/api/get_sms?key=test',
       }),
       onFetch: () => events.push(['fetch']),
       sleepWithStop: async (ms) => events.push(['sleep', ms]),

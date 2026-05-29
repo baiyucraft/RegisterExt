@@ -2,16 +2,11 @@
   root.MultiPageFlowCapabilities = factory();
 })(typeof self !== 'undefined' ? self : globalThis, function createFlowCapabilitiesModule() {
   const DEFAULT_FLOW_ID = 'openai';
-  const DEFAULT_PANEL_MODE = 'local-cpa-json';
-  const LOCAL_CPA_JSON_NO_RT_PANEL_MODE = 'local-cpa-json-no-rt';
+  const DEFAULT_PANEL_MODE = 'register-manager-api';
   const SIGNUP_METHOD_EMAIL = 'email';
   const SIGNUP_METHOD_PHONE = 'phone';
   const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
-  const PLUS_ACCOUNT_ACCESS_STRATEGY_SMS_OAUTH = 'sms_oauth';
-  const PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH = 'phone_bind_oauth';
-  const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
-  const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
-  const VALID_PANEL_MODES = Object.freeze(['local-cpa-json', LOCAL_CPA_JSON_NO_RT_PANEL_MODE, 'cpa', 'sub2api', 'codex2api']);
+  const VALID_PANEL_MODES = Object.freeze([DEFAULT_PANEL_MODE]);
 
   const DEFAULT_FLOW_CAPABILITIES = Object.freeze({
     supportsEmailSignup: true,
@@ -33,7 +28,7 @@
       supportsPhoneVerificationSettings: true,
       supportsPlusMode: true,
       supportsContributionMode: true,
-      supportsPlatformBinding: ['local-cpa-json', LOCAL_CPA_JSON_NO_RT_PANEL_MODE, 'cpa', 'sub2api', 'codex2api'],
+      supportsPlatformBinding: [DEFAULT_PANEL_MODE],
       supportsLuckmail: true,
       supportsOauthTimeoutBudget: true,
       stepDefinitionMode: 'openai-dynamic',
@@ -55,42 +50,11 @@
   ]);
 
   const PANEL_CAPABILITIES = Object.freeze({
-    cpa: Object.freeze({
+    [DEFAULT_PANEL_MODE]: Object.freeze({
       supportsPhoneSignup: true,
       supportedPlusAccountAccessStrategies: Object.freeze([
         PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH,
-        PLUS_ACCOUNT_ACCESS_STRATEGY_SMS_OAUTH,
-        PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH,
-        PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION,
       ]),
-    }),
-    'local-cpa-json': Object.freeze({
-      supportsPhoneSignup: true,
-      supportedPlusAccountAccessStrategies: Object.freeze([
-        PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH,
-        PLUS_ACCOUNT_ACCESS_STRATEGY_SMS_OAUTH,
-        PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH,
-      ]),
-    }),
-    [LOCAL_CPA_JSON_NO_RT_PANEL_MODE]: Object.freeze({
-      supportsPhoneSignup: true,
-      supportedPlusAccountAccessStrategies: Object.freeze([
-        PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH,
-        PLUS_ACCOUNT_ACCESS_STRATEGY_SMS_OAUTH,
-        PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH,
-      ]),
-    }),
-    sub2api: Object.freeze({
-      supportsPhoneSignup: true,
-      supportedPlusAccountAccessStrategies: Object.freeze([
-        PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH,
-        PLUS_ACCOUNT_ACCESS_STRATEGY_SMS_OAUTH,
-        PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH,
-        PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION,
-      ]),
-    }),
-    codex2api: Object.freeze({
-      supportsPhoneSignup: true,
     }),
   });
 
@@ -104,12 +68,7 @@
   }
 
   function normalizePanelMode(value = '', fallback = DEFAULT_PANEL_MODE) {
-    const normalized = String(value || '').trim().toLowerCase();
-    if (VALID_PANEL_MODES.includes(normalized)) {
-      return normalized;
-    }
-    const fallbackValue = String(fallback || '').trim().toLowerCase();
-    return VALID_PANEL_MODES.includes(fallbackValue) ? fallbackValue : DEFAULT_PANEL_MODE;
+    return DEFAULT_PANEL_MODE;
   }
 
   function normalizeSignupMethod(value = '') {
@@ -119,52 +78,15 @@
   }
 
   function normalizePlusAccountAccessStrategy(value = '') {
-    const normalized = String(value || '').trim().toLowerCase();
-    if (normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_SMS_OAUTH) {
-      return PLUS_ACCOUNT_ACCESS_STRATEGY_SMS_OAUTH;
-    }
-    if (normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH) {
-      return PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH;
-    }
-    if (normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION) {
-      return PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION;
-    }
-    if (normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION) {
-      return PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION;
-    }
     return PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
   }
 
   function getPlusAccountSessionStrategyForPanel(panelMode = '') {
-    const normalizedPanelMode = normalizePanelMode(panelMode);
-    if (normalizedPanelMode === 'sub2api') {
-      return PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION;
-    }
-    if (normalizedPanelMode === 'cpa') {
-      return PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION;
-    }
     return PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
   }
 
   function normalizePlusAccountAccessStrategyForPanel(value = '', panelMode = '') {
-    const normalized = normalizePlusAccountAccessStrategy(value);
-    if (normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_SMS_OAUTH) {
-      return ['cpa', 'local-cpa-json', LOCAL_CPA_JSON_NO_RT_PANEL_MODE, 'sub2api'].includes(normalizePanelMode(panelMode))
-        ? PLUS_ACCOUNT_ACCESS_STRATEGY_SMS_OAUTH
-        : PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
-    }
-    if (normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH) {
-      return ['cpa', 'local-cpa-json', LOCAL_CPA_JSON_NO_RT_PANEL_MODE, 'sub2api'].includes(normalizePanelMode(panelMode))
-        ? PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH
-        : PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
-    }
-    if (
-      normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION
-      || normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION
-    ) {
-      return getPlusAccountSessionStrategyForPanel(panelMode);
-    }
-    return normalized;
+    return PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
   }
 
   function normalizePanelModeList(values = []) {
@@ -185,20 +107,7 @@
   }
 
   function getPanelModeLabel(panelMode = '') {
-    const normalized = normalizePanelMode(panelMode);
-    if (normalized === 'local-cpa-json') {
-      return '本地CPA JSON 有RT';
-    }
-    if (normalized === LOCAL_CPA_JSON_NO_RT_PANEL_MODE) {
-      return '本地CPA JSON 无RT';
-    }
-    if (normalized === 'sub2api') {
-      return 'SUB2API';
-    }
-    if (normalized === 'codex2api') {
-      return 'Codex2API';
-    }
-    return 'CPA';
+    return 'RegisterExt API';
   }
 
   function createFlowCapabilityRegistry(deps = {}) {
@@ -279,14 +188,8 @@
         : [PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH])
         .map(normalizePlusAccountAccessStrategy)
         .filter((strategy, index, strategies) => strategy && strategies.indexOf(strategy) === index);
-      const canUseSmsOauthPhoneSignup = activeFlowId === 'openai'
-        && Boolean(runtimeLocks.plusModeEnabled)
-        && requestedPlusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_SMS_OAUTH
-        && panelPlusAccountAccessStrategies.includes(PLUS_ACCOUNT_ACCESS_STRATEGY_SMS_OAUTH);
-      const canUsePhoneBindOauth = activeFlowId === 'openai'
-        && Boolean(runtimeLocks.plusModeEnabled)
-        && requestedPlusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH
-        && panelPlusAccountAccessStrategies.includes(PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH);
+      const canUseSmsOauthPhoneSignup = false;
+      const canUsePhoneBindOauth = false;
       const effectiveSignupMethods = [];
       if (flowState.supportsEmailSignup !== false) {
         effectiveSignupMethods.push(SIGNUP_METHOD_EMAIL);
@@ -435,7 +338,7 @@
       if (
         capabilityState.requestedSignupMethod === SIGNUP_METHOD_PHONE
         && capabilityState.effectiveSignupMethod !== SIGNUP_METHOD_PHONE
-        && capabilityState.effectivePlusAccountAccessStrategy !== PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH
+        && capabilityState.effectivePlusAccountAccessStrategy !== PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH
       ) {
         errors.push(buildPhoneSignupValidationError(capabilityState));
       }
@@ -509,7 +412,7 @@
         && capabilityState.effectiveSignupMethod !== SIGNUP_METHOD_PHONE
       ) {
         normalizedUpdates.signupMethod = capabilityState.effectiveSignupMethod;
-        if (capabilityState.effectivePlusAccountAccessStrategy !== PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH) {
+        if (capabilityState.effectivePlusAccountAccessStrategy !== PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH) {
           errors.push(buildPhoneSignupValidationError(capabilityState));
         }
       }
@@ -564,10 +467,6 @@
     FLOW_CAPABILITIES,
     PANEL_CAPABILITIES,
     PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH,
-    PLUS_ACCOUNT_ACCESS_STRATEGY_SMS_OAUTH,
-    PLUS_ACCOUNT_ACCESS_STRATEGY_PHONE_BIND_OAUTH,
-    PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION,
-    PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION,
     SIGNUP_METHOD_EMAIL,
     SIGNUP_METHOD_PHONE,
     normalizeFlowId,
