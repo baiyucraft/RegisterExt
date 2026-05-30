@@ -2206,6 +2206,48 @@ header {
   justify-content: flex-end;
 }
 
+.task-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--border-color, rgba(255, 255, 255, 0.16)) 80%, transparent);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    var(--surface-muted, rgba(255, 255, 255, 0.06));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+.task-mode-tab {
+  min-width: 0;
+}
+
+.task-mode-tab span {
+  width: 100%;
+  min-height: 34px;
+  justify-content: center;
+  border-color: transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.72));
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.task-mode-tab input:checked + span,
+.task-mode-tab.is-active span {
+  border-color: color-mix(in srgb, var(--accent-color, #5fbcff) 45%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)),
+    color-mix(in srgb, var(--accent-color, #5fbcff) 22%, transparent);
+  color: var(--text-primary, #fff);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 8px 18px rgba(0, 0, 0, 0.16);
+}
+
 .plus-checkout-mode-option {
   position: relative;
   display: inline-flex;

@@ -265,9 +265,11 @@ const inputGoPayOtp = document.getElementById('input-gopay-otp');
 const rowGoPayPin = document.getElementById('row-gopay-pin');
 const inputGoPayPin = document.getElementById('input-gopay-pin');
 const selectMailProvider = document.getElementById('select-mail-provider');
+const rowMailProvider = document.getElementById('row-mail-provider');
 const rowRegisterExtTaskMode = document.getElementById('row-register-ext-task-mode');
 const registerExtTaskModeInputs = Array.from(document.querySelectorAll('input[name="register-ext-task-mode"]'));
 const plusCheckoutModeInputs = [inputPlusCheckoutModeUs, inputPlusCheckoutModeJp].filter(Boolean);
+const rowRegisterManagerGroupName = document.getElementById('row-register-manager-group-name');
 const inputRegisterManagerGroupName = document.getElementById('input-register-manager-group-name');
 const rowRegisterManagerAccountPicker = document.getElementById('row-register-manager-account');
 const selectRegisterManagerAccount = document.getElementById('select-register-manager-account');
@@ -10135,23 +10137,20 @@ function resolveStepDefinitionCapabilityState(state = latestState, options = {})
 
 function updateRegisterExtTaskModeUI() {
   const mode = getSelectedRegisterExtTaskMode(latestState);
-  const usesRegisterAccount = mode !== REGISTER_EXT_TASK_MODE_PAY_SEEDED;
-  const usesPlusCheckout = mode !== REGISTER_EXT_TASK_MODE_REGISTER_ONLY;
+  const usesRegistration = mode !== REGISTER_EXT_TASK_MODE_PAY_SEEDED;
+  const usesSeededPaymentAccount = mode === REGISTER_EXT_TASK_MODE_PAY_SEEDED;
   syncRegisterExtTaskModeVisualState();
+  if (rowMailProvider) {
+    rowMailProvider.style.display = usesRegistration ? '' : 'none';
+  }
+  if (rowRegisterManagerGroupName) {
+    rowRegisterManagerGroupName.style.display = '';
+  }
   if (rowRegisterManagerAccountPicker) {
-    rowRegisterManagerAccountPicker.style.display = usesRegisterAccount ? '' : 'none';
+    rowRegisterManagerAccountPicker.style.display = usesRegistration ? '' : 'none';
   }
   if (rowPlusCheckoutAccount) {
-    rowPlusCheckoutAccount.style.display = mode === REGISTER_EXT_TASK_MODE_PAY_SEEDED ? '' : 'none';
-  }
-  if (rowPlusMode) {
-    rowPlusMode.style.display = usesPlusCheckout ? '' : 'none';
-  }
-  if (rowHostedCheckoutSmsPool) {
-    rowHostedCheckoutSmsPool.style.display = usesPlusCheckout ? '' : 'none';
-  }
-  if (rowHostedCheckoutResendSettings) {
-    rowHostedCheckoutResendSettings.style.display = usesPlusCheckout ? '' : 'none';
+    rowPlusCheckoutAccount.style.display = usesSeededPaymentAccount ? '' : 'none';
   }
 }
 
@@ -10623,7 +10622,8 @@ function updatePlusModeUI() {
   const gopayValue = typeof PLUS_PAYMENT_METHOD_GOPAY !== 'undefined' ? PLUS_PAYMENT_METHOD_GOPAY : 'gopay';
   const gpcValue = typeof PLUS_PAYMENT_METHOD_GPC_HELPER !== 'undefined' ? PLUS_PAYMENT_METHOD_GPC_HELPER : 'gpc-helper';
   const defaultMethod = typeof DEFAULT_PLUS_PAYMENT_METHOD !== 'undefined' ? DEFAULT_PLUS_PAYMENT_METHOD : paypalValue;
-  const rawEnabled = getFixedPlusModeEnabled();
+  const taskMode = getSelectedRegisterExtTaskMode(latestState);
+  const rawEnabled = getEffectivePlusModeEnabled({ ...(latestState || {}), registerExtTaskMode: taskMode });
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
       panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode,
@@ -10679,11 +10679,11 @@ function updatePlusModeUI() {
   const localSmsControlsVisible = gpcRowsVisible && !isGpcAutoMode;
   const effectiveLocalSmsEnabled = !isGpcAutoMode && localSmsEnabled;
   if (typeof rowPlusMode !== 'undefined' && rowPlusMode) {
-    rowPlusMode.style.display = supportsPlusMode ? '' : 'none';
+    rowPlusMode.style.display = enabled ? '' : 'none';
   }
   const checkoutModeSwitchVisible = supportsPlusMode && enabled && selectedMethod === paypalValue;
   if (plusCheckoutModeSwitchGroup) {
-    plusCheckoutModeSwitchGroup.style.display = supportsPlusMode ? '' : 'none';
+    plusCheckoutModeSwitchGroup.style.display = checkoutModeSwitchVisible ? '' : 'none';
   }
   plusCheckoutModeInputs.forEach((input) => {
     input.disabled = !checkoutModeSwitchVisible;
@@ -12386,6 +12386,7 @@ function applySettingsState(state) {
   }
   updatePanelModeUI();
   updateMailProviderUI();
+  updateRegisterExtTaskModeUI();
   if (typeof queueCustomEmailPoolRefresh === 'function') {
     queueCustomEmailPoolRefresh();
   }
@@ -13834,7 +13835,7 @@ function updateMailProviderUI() {
     hotmailSection.style.display = useHotmail && !useRegisterManagerApi ? '' : 'none';
   }
   if (rowRegisterManagerAccountPicker) {
-    rowRegisterManagerAccountPicker.style.display = useRegisterManagerApi ? '' : 'none';
+    rowRegisterManagerAccountPicker.style.display = useRegisterManagerApi && !isRegisterExtPaySeededMode() ? '' : 'none';
   }
   if (mail2925Section) {
     mail2925Section.style.display = useMail2925AccountPool ? '' : 'none';
@@ -19801,6 +19802,8 @@ setMail2925Mode(DEFAULT_MAIL_2925_MODE);
 setCloudflareTempEmailLookupMode(DEFAULT_CLOUDFLARE_TEMP_EMAIL_LOOKUP_MODE);
 updatePanelModeUI();
 updateMailProviderUI();
+updateRegisterExtTaskModeUI();
+updatePlusModeUI();
 updateButtonStates();
 initializeReleaseInfo().catch((err) => {
   console.error('Failed to initialize release info:', err);

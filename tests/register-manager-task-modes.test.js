@@ -19,9 +19,18 @@ test('RegisterExt task mode UI exposes register-only, register-then-pay, and pay
   const sidepanel = read('sidepanel/sidepanel.js');
 
   assert.match(html, /id="row-register-ext-task-mode"/);
-  assert.match(html, /value="register_only"[\s\S]*只注册/);
-  assert.match(html, /value="register_then_pay"[\s\S]*注册后支付/);
-  assert.match(html, /value="pay_seeded"[\s\S]*仅支付已有账号/);
+  assert.ok(
+    html.indexOf('id="row-register-ext-task-mode"') < html.indexOf('id="row-plus-mode"'),
+    'task mode tabs should be the first workflow control'
+  );
+  assert.ok(
+    html.indexOf('id="row-register-ext-task-mode"') < html.indexOf('id="row-mail-provider"'),
+    'task mode tabs should appear before mail settings'
+  );
+  assert.match(html, /class="task-mode-tabs"[\s\S]*role="radiogroup"[\s\S]*aria-label="RegisterExt 任务模式"/);
+  assert.match(html, /value="register_only"[\s\S]*<span>注册<\/span>/);
+  assert.match(html, /value="pay_seeded"[\s\S]*<span>支付<\/span>/);
+  assert.match(html, /value="register_then_pay"[\s\S]*<span>注册后支付<\/span>/);
   assert.match(html, /id="row-register-manager-account"/);
   assert.match(html, /id="row-plus-checkout-account"/);
   assert.match(html, /id="select-plus-checkout-account"/);
@@ -38,6 +47,28 @@ test('RegisterExt task mode UI exposes register-only, register-then-pay, and pay
   assert.doesNotMatch(sidepanel, /plusModeEnabled:\s*getFixedPlusModeEnabled\(\)/);
 });
 
+test('RegisterExt task tabs drive final settings panel visibility matrix', () => {
+  const css = read('sidepanel/sidepanel.css');
+  const sidepanel = read('sidepanel/sidepanel.js');
+
+  assert.match(css, /\.task-mode-tabs/);
+  assert.match(css, /\.task-mode-tab\.is-active span/);
+  assert.match(sidepanel, /const rowMailProvider = document\.getElementById\('row-mail-provider'\);/);
+  assert.match(sidepanel, /const rowRegisterManagerGroupName = document\.getElementById\('row-register-manager-group-name'\);/);
+  assert.match(
+    sidepanel,
+    /function updateRegisterExtTaskModeUI\(\) \{[\s\S]*?const usesRegistration = mode !== REGISTER_EXT_TASK_MODE_PAY_SEEDED;[\s\S]*?const usesSeededPaymentAccount = mode === REGISTER_EXT_TASK_MODE_PAY_SEEDED;[\s\S]*?rowMailProvider\.style\.display = usesRegistration \? '' : 'none';[\s\S]*?rowRegisterManagerGroupName\.style\.display = '';[\s\S]*?rowRegisterManagerAccountPicker\.style\.display = usesRegistration \? '' : 'none';[\s\S]*?rowPlusCheckoutAccount\.style\.display = usesSeededPaymentAccount \? '' : 'none';/
+  );
+  assert.match(
+    sidepanel,
+    /function updatePlusModeUI\(\) \{[\s\S]*?const taskMode = getSelectedRegisterExtTaskMode\(latestState\);[\s\S]*?const rawEnabled = getEffectivePlusModeEnabled\(\{ \.\.\.\(latestState \|\| \{\}\), registerExtTaskMode: taskMode \}\);[\s\S]*?rowPlusMode\.style\.display = enabled \? '' : 'none';[\s\S]*?plusCheckoutModeSwitchGroup\.style\.display = checkoutModeSwitchVisible \? '' : 'none';/
+  );
+  assert.match(
+    sidepanel,
+    /rowHostedCheckoutSmsPool[\s\S]*?rowHostedCheckoutResendSettings[\s\S]*?row\.style\.display = enabled && selectedMethod === paypalValue \? '' : 'none';/
+  );
+});
+
 test('RegisterExt task and checkout mode switches refresh their active visual state', () => {
   const css = read('sidepanel/sidepanel.css');
   const sidepanel = read('sidepanel/sidepanel.js');
@@ -48,6 +79,19 @@ test('RegisterExt task and checkout mode switches refresh their active visual st
   assert.match(sidepanel, /registerExtTaskModeInputs\.forEach\(\(input\) => \{[\s\S]*?updateRegisterExtTaskModeUI\(\);[\s\S]*?updatePlusModeUI\(\);[\s\S]*?syncRegisterExtTaskModeVisualState\(\);/);
   assert.match(sidepanel, /function updateRegisterExtTaskModeUI\(\) \{[\s\S]*?syncRegisterExtTaskModeVisualState\(\);/);
   assert.match(sidepanel, /function applyPlusCheckoutProfileToInputs[\s\S]*?syncPlusCheckoutModeVisualState\(\);/);
+});
+
+test('RegisterExt payment candidate refresh keeps group filtering', () => {
+  const sidepanel = read('sidepanel/sidepanel.js');
+
+  assert.match(
+    sidepanel,
+    /async function refreshRegisterManagerAccountCandidates[\s\S]*?client\.listCandidates\(\{[\s\S]*?groupName: getRegisterManagerGroupNameFromSettings\(\) \|\| undefined,/
+  );
+  assert.match(
+    sidepanel,
+    /async function refreshPlusCheckoutAccountCandidates[\s\S]*?client\.listPlusCheckoutCandidates\(\{[\s\S]*?groupName: getRegisterManagerGroupNameFromSettings\(\) \|\| undefined,/
+  );
 });
 
 test('RegisterExt task modes choose distinct workflow nodes', () => {

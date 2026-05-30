@@ -141,6 +141,54 @@
           <button id="btn-exit-contribution-mode" class="btn btn-ghost btn-sm" type="button">退出贡献模式</button>
         </div>
       </div>
+      <div class="task-mode-tabs" id="row-register-ext-task-mode" role="radiogroup" aria-label="RegisterExt 任务模式">
+        <label class="task-mode-tab plus-checkout-mode-option" for="input-register-ext-task-mode-register-only">
+          <input type="radio" name="register-ext-task-mode" id="input-register-ext-task-mode-register-only"
+            value="register_only" checked />
+          <span>注册</span>
+        </label>
+        <label class="task-mode-tab plus-checkout-mode-option" for="input-register-ext-task-mode-pay-seeded">
+          <input type="radio" name="register-ext-task-mode" id="input-register-ext-task-mode-pay-seeded"
+            value="pay_seeded" />
+          <span>支付</span>
+        </label>
+        <label class="task-mode-tab plus-checkout-mode-option" for="input-register-ext-task-mode-register-then-pay">
+          <input type="radio" name="register-ext-task-mode" id="input-register-ext-task-mode-register-then-pay"
+            value="register_then_pay" />
+          <span>注册后支付</span>
+        </label>
+      </div>
+      <div class="data-row module-divider-start" id="row-mail-provider">
+        <span class="data-label">邮箱服务</span>
+        <div class="data-inline">
+          <select id="select-mail-provider" class="data-select">
+            <option value="register-manager-api" selected>register-manager API 服务</option>
+          </select>
+        </div>
+      </div>
+      <div class="data-row" id="row-register-manager-group-name">
+        <span class="data-label">分组筛选</span>
+        <input type="text" id="input-register-manager-group-name" class="data-input"
+          placeholder="留空则使用全部未注册邮箱" />
+      </div>
+      <div class="data-row" id="row-register-manager-account">
+        <span class="data-label">注册邮箱</span>
+        <div class="data-inline">
+          <select id="select-register-manager-account" class="data-select">
+            <option value="">自动选择未注册邮箱</option>
+          </select>
+          <button id="btn-refresh-register-manager-accounts" class="btn btn-outline btn-sm data-inline-btn" type="button">刷新</button>
+        </div>
+      </div>
+      <div class="data-row" id="row-plus-checkout-account">
+        <span class="data-label">支付账号</span>
+        <div class="data-inline">
+          <select id="select-plus-checkout-account" class="data-select">
+            <option value="">自动选择有 seed 的账号</option>
+          </select>
+          <button id="btn-refresh-plus-checkout-accounts" class="btn btn-outline btn-sm data-inline-btn" type="button">刷新</button>
+        </div>
+      </div>
       <div class="data-row" id="row-plus-mode">
         <span class="data-label">Plus Checkout</span>
         <div class="data-inline setting-pair">
@@ -405,57 +453,6 @@
             data-password-toggle="input-gopay-pin" data-show-label="显示 GoPay PIN"
             data-hide-label="隐藏 GoPay PIN" aria-label="显示 GoPay PIN"
             title="显示 GoPay PIN"></button>
-        </div>
-      </div>
-      <div class="data-row module-divider-start" id="row-mail-provider">
-        <span class="data-label">邮箱服务</span>
-        <div class="data-inline">
-          <select id="select-mail-provider" class="data-select">
-            <option value="register-manager-api" selected>register-manager API 服务</option>
-          </select>
-        </div>
-      </div>
-      <div class="data-row" id="row-register-ext-task-mode">
-        <span class="data-label">任务模式</span>
-        <div class="plus-checkout-mode-switch" role="radiogroup" aria-label="RegisterExt 任务模式">
-          <label class="plus-checkout-mode-option" for="input-register-ext-task-mode-register-only">
-            <input type="radio" name="register-ext-task-mode" id="input-register-ext-task-mode-register-only"
-              value="register_only" checked />
-            <span>只注册</span>
-          </label>
-          <label class="plus-checkout-mode-option" for="input-register-ext-task-mode-register-then-pay">
-            <input type="radio" name="register-ext-task-mode" id="input-register-ext-task-mode-register-then-pay"
-              value="register_then_pay" />
-            <span>注册后支付</span>
-          </label>
-          <label class="plus-checkout-mode-option" for="input-register-ext-task-mode-pay-seeded">
-            <input type="radio" name="register-ext-task-mode" id="input-register-ext-task-mode-pay-seeded"
-              value="pay_seeded" />
-            <span>仅支付已有账号</span>
-          </label>
-        </div>
-      </div>
-      <div class="data-row" id="row-register-manager-group-name">
-        <span class="data-label">分组筛选</span>
-        <input type="text" id="input-register-manager-group-name" class="data-input"
-          placeholder="留空则使用全部未注册邮箱" />
-      </div>
-      <div class="data-row" id="row-register-manager-account">
-        <span class="data-label">注册邮箱</span>
-        <div class="data-inline">
-          <select id="select-register-manager-account" class="data-select">
-            <option value="">自动选择未注册邮箱</option>
-          </select>
-          <button id="btn-refresh-register-manager-accounts" class="btn btn-outline btn-sm data-inline-btn" type="button">刷新</button>
-        </div>
-      </div>
-      <div class="data-row" id="row-plus-checkout-account">
-        <span class="data-label">支付账号</span>
-        <div class="data-inline">
-          <select id="select-plus-checkout-account" class="data-select">
-            <option value="">自动选择有 seed 的账号</option>
-          </select>
-          <button id="btn-refresh-plus-checkout-accounts" class="btn btn-outline btn-sm data-inline-btn" type="button">刷新</button>
         </div>
       </div>
       <div class="data-row data-check-row" id="row-custom-mail-provider-pool" style="display:none;">
