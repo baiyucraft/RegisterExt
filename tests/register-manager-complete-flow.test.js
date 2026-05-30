@@ -60,6 +60,10 @@ test('background terminal paths call RegisterExt complete bridge', () => {
   const requestStopBody = source.slice(requestStopStart, source.indexOf('// ============================================================', requestStopStart));
 
   assert.match(completeNodeBody, /normalizedNodeId === 'wait-registration-success'[\s\S]*completeRegisterManagerRunForState\(latestState,\s*\{\s*status:\s*'success'/);
+  const step6Source = fs.readFileSync(path.join(__dirname, '..', 'background', 'steps', 'wait-registration-success.js'), 'utf8');
+  assert.doesNotMatch(step6Source, /registerManagerApiClient\?\.submitRunSeed/);
+  assert.match(completeNodeBody, /completeRegisterManagerRunForState\(latestState,\s*\{\s*status:\s*'success'[\s\S]*submitRegisterManagerRunSeedForState/);
+  assert.match(source, /async function submitRegisterManagerRunSeedForState/);
   assert.match(completeNodeBody, /stopRequested[\s\S]*completeRegisterManagerRunForState\(stoppedState,[\s\S]*status:\s*'stopped'/);
   assert.match(failNodeBody, /completeRegisterManagerRunForState\(latestState,[\s\S]*status:\s*'failed'/);
   assert.match(failNodeBody, /completeRegisterManagerRunForState\(stoppedState,[\s\S]*status:\s*'stopped'/);

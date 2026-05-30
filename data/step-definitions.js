@@ -57,6 +57,13 @@
     { id: 7, order: 70, key: 'plus-checkout-billing', title: '等待 GPC 任务完成', sourceId: 'plus-checkout', driverId: 'content/plus-checkout', command: 'plus-checkout-billing' },
   ];
 
+  const REGISTER_EXT_PAY_SEEDED_STEP_DEFINITIONS = [
+    { id: 1, order: 10, key: 'plus-checkout-create', title: '创建 Plus Checkout', sourceId: 'plus-checkout', driverId: 'content/plus-checkout', command: 'plus-checkout-create' },
+    { id: 2, order: 20, key: 'plus-checkout-billing', title: '填写账单并提交订单', sourceId: 'plus-checkout', driverId: 'content/plus-checkout', command: 'plus-checkout-billing' },
+    { id: 3, order: 30, key: 'paypal-approve', title: 'PayPal 登录与授权', sourceId: 'paypal-flow', driverId: 'content/paypal-flow', command: 'paypal-approve' },
+    { id: 4, order: 40, key: 'plus-checkout-return', title: '订阅回跳确认', sourceId: 'plus-checkout', driverId: 'content/plus-checkout', command: 'plus-checkout-return' },
+  ];
+
   function isPhoneSignupReloginAfterBindEmailEnabled(options = {}) {
     return Boolean(options?.phoneSignupReloginAfterBindEmailEnabled);
   }
@@ -217,9 +224,15 @@
     ];
   }
 
-  const NORMAL_STEP_DEFINITIONS = createOpenAiSteps(NORMAL_PREFIX_STEP_DEFINITIONS, 11, 110, SIGNUP_METHOD_EMAIL);
-  const NORMAL_PHONE_STEP_DEFINITIONS = createOpenAiSteps(NORMAL_PREFIX_STEP_DEFINITIONS, 11, 110, SIGNUP_METHOD_PHONE);
-  const NORMAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = createOpenAiSteps(NORMAL_PREFIX_STEP_DEFINITIONS, 11, 110, SIGNUP_METHOD_PHONE, { phoneSignupReloginAfterBindEmailEnabled: true });
+  const REGISTER_ONLY_PREFIX_STEP_DEFINITIONS = NORMAL_PREFIX_STEP_DEFINITIONS.slice(0, 6);
+  const NORMAL_STEP_DEFINITIONS = REGISTER_ONLY_PREFIX_STEP_DEFINITIONS;
+  const NORMAL_PHONE_STEP_DEFINITIONS = REGISTER_ONLY_PREFIX_STEP_DEFINITIONS.map((step) => ({
+    ...step,
+    title: step.key === 'submit-signup-email'
+      ? '注册并输入手机号'
+      : (step.key === 'fetch-signup-code' ? '获取手机验证码' : step.title),
+  }));
+  const NORMAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = NORMAL_PHONE_STEP_DEFINITIONS;
   const PLUS_PAYPAL_STEP_DEFINITIONS = createOpenAiSteps(PLUS_PAYPAL_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_EMAIL);
   const PLUS_PAYPAL_PHONE_STEP_DEFINITIONS = createOpenAiSteps(PLUS_PAYPAL_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_PHONE);
   const PLUS_PAYPAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = createOpenAiSteps(PLUS_PAYPAL_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_PHONE, { phoneSignupReloginAfterBindEmailEnabled: true });
@@ -242,6 +255,13 @@
 
   function isPlusModeEnabled(options = {}) {
     return Boolean(options?.plusModeEnabled || options?.plusMode);
+  }
+
+  function normalizeRegisterExtTaskMode(value = '') {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'pay_seeded') return 'pay_seeded';
+    if (normalized === 'register_then_pay') return 'register_then_pay';
+    return 'register_only';
   }
 
   function shouldTreatHostedCheckoutAsFinalStep(options = {}) {
@@ -279,12 +299,22 @@
   }
 
   function getOpenAiModeStepDefinitions(options = {}) {
+    const registerExtTaskMode = normalizeRegisterExtTaskMode(options?.registerExtTaskMode);
+    if (registerExtTaskMode === 'register_only') {
+      return NORMAL_STEP_DEFINITIONS;
+    }
+    if (registerExtTaskMode === 'pay_seeded') {
+      return REGISTER_EXT_PAY_SEEDED_STEP_DEFINITIONS;
+    }
     const signupMethod = shouldUsePhoneBindOauthFlow(options)
       ? SIGNUP_METHOD_EMAIL
       : getResolvedSignupMethod(options);
     const reloginAfterBindEmail = signupMethod === SIGNUP_METHOD_PHONE
       && isPhoneSignupReloginAfterBindEmailEnabled(options);
-    if (!isPlusModeEnabled(options)) {
+    const plusModeOptions = registerExtTaskMode === 'register_then_pay'
+      ? { ...options, plusModeEnabled: true, plusPaymentMethod: PLUS_PAYMENT_METHOD_PAYPAL }
+      : options;
+    if (!isPlusModeEnabled(plusModeOptions)) {
       if (signupMethod === SIGNUP_METHOD_PHONE) {
         return reloginAfterBindEmail
           ? NORMAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS
@@ -292,16 +322,16 @@
       }
       return NORMAL_STEP_DEFINITIONS;
     }
-    const paymentMethod = normalizePlusPaymentMethod(options?.plusPaymentMethod || options?.paymentMethod);
-    const plusAccountAccessStrategy = normalizePlusAccountAccessStrategy(options?.plusAccountAccessStrategy);
-    if (shouldUseSmsOauthPhoneFlow(options)) {
+    const paymentMethod = normalizePlusPaymentMethod(plusModeOptions?.plusPaymentMethod || plusModeOptions?.paymentMethod);
+    const plusAccountAccessStrategy = normalizePlusAccountAccessStrategy(plusModeOptions?.plusAccountAccessStrategy);
+    if (shouldUseSmsOauthPhoneFlow(plusModeOptions)) {
       return PLUS_PAYPAL_SMS_OAUTH_STEP_DEFINITIONS;
     }
     if (
-      shouldUsePhoneBindOauthFlow(options)
+      shouldUsePhoneBindOauthFlow(plusModeOptions)
       && paymentMethod === PLUS_PAYMENT_METHOD_PAYPAL
       && shouldTreatHostedCheckoutAsFinalStep({
-        ...options,
+        ...plusModeOptions,
         plusModeEnabled: true,
         plusPaymentMethod: paymentMethod,
       })
@@ -325,16 +355,17 @@
       return PLUS_GOPAY_STEP_DEFINITIONS;
     }
     if (shouldTreatHostedCheckoutAsFinalStep({
-      ...options,
+      ...plusModeOptions,
       plusModeEnabled: true,
       plusPaymentMethod: paymentMethod,
     })) {
+      const hostedCheckoutPrefix = NORMAL_PREFIX_STEP_DEFINITIONS.slice(0, 7);
       if (signupMethod === SIGNUP_METHOD_PHONE) {
         return reloginAfterBindEmail
-          ? PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS
-          : PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_STEP_DEFINITIONS;
+          ? createHostedCheckoutSteps(hostedCheckoutPrefix, 8, 80, SIGNUP_METHOD_PHONE, { phoneSignupReloginAfterBindEmailEnabled: true })
+          : createHostedCheckoutSteps(hostedCheckoutPrefix, 8, 80, SIGNUP_METHOD_PHONE);
       }
-      return PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS;
+      return createHostedCheckoutSteps(hostedCheckoutPrefix, 8, 80, SIGNUP_METHOD_EMAIL);
     }
     if (signupMethod === SIGNUP_METHOD_PHONE) {
       return reloginAfterBindEmail
@@ -398,6 +429,7 @@
           ...PLUS_GPC_STEP_DEFINITIONS,
           ...PLUS_GPC_PHONE_STEP_DEFINITIONS,
           ...PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
+          ...REGISTER_EXT_PAY_SEEDED_STEP_DEFINITIONS,
         ]) {
           keyed.set(`${step.id}:${step.key}`, step);
         }

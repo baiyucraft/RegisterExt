@@ -91,6 +91,42 @@ test('RegisterExt checkout create executor calls extension API and bypasses lega
   assert.equal(completed[0].nodeId, 'plus-checkout-create');
 });
 
+test('RegisterExt checkout create executor never stores masked session id as real session id', async () => {
+  const module = loadBackgroundStepModule('background/steps/create-plus-checkout.js', 'MultiPageBackgroundPlusCheckoutCreate');
+  const states = [];
+  const executor = module.createPlusCheckoutCreateExecutor({
+    addLog: async () => {},
+    chrome: { tabs: { create: async (details) => ({ id: 11, ...details }) } },
+    completeNodeFromBackground: async () => {},
+    createAutomationTab: async (details) => ({ id: 42, ...details }),
+    ensureContentScriptReadyOnTabUntilStopped: async () => {
+      throw new Error('legacy checkout path should not inject content scripts');
+    },
+    sendTabMessageUntilStopped: async () => {
+      throw new Error('legacy converter should not be called');
+    },
+    setState: async (payload) => states.push(payload),
+    sleepWithStop: async () => {},
+    waitForTabCompleteUntilStopped: async () => {},
+    registerManagerApiClient: {
+      createPlusCheckoutRun: async () => ({
+        checkout: {
+          checkoutUuid: 'checkout-1',
+          preferredCheckoutUrl: 'https://chatgpt.com/checkout/session-1',
+          checkoutSessionId: 'cs_***1234',
+          checkoutSessionIdMasked: 'cs_***1234',
+        },
+      }),
+    },
+  });
+
+  await executor.executePlusCheckoutCreate({ plusCheckoutRunId: 'pay-run-1' });
+
+  const checkoutState = states.find((payload) => Object.prototype.hasOwnProperty.call(payload, 'plusCheckoutSessionId'));
+  assert.equal(checkoutState.plusCheckoutSessionId, '');
+  assert.equal(checkoutState.plusCheckoutSessionIdMasked, 'cs_***1234');
+});
+
 test('RegisterExt return confirm only writes success for explicit payment success URLs', async () => {
   const module = loadBackgroundStepModule('background/steps/plus-return-confirm.js', 'MultiPageBackgroundPlusReturnConfirm');
   const calls = [];

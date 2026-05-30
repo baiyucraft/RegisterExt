@@ -1117,12 +1117,22 @@ const PERSISTED_SETTING_DEFAULTS = {
   verificationResendCount: DEFAULT_VERIFICATION_RESEND_COUNT,
   registerManagerApiBaseUrl: DEFAULT_REGISTER_MANAGER_API_BASE_URL,
   registerManagerGroupName: '',
+  registerExtTaskMode: 'register_only',
   registerExtSelectedAccountId: null,
   registerExtSelectedEmail: '',
+  plusCheckoutSelectedAccountId: null,
+  plusCheckoutSelectedEmail: '',
+  plusCheckoutRunId: '',
+  plusCheckoutAccountId: null,
+  plusCheckoutUuid: '',
+  plusCheckoutStatus: '',
+  plusCheckoutPaymentStatus: '',
   registerExtRunId: '',
   registerExtAccountId: null,
   registerExtCompletedAt: 0,
   registerExtCompletionStatus: '',
+  registerExtSeedSubmittedAt: 0,
+  registerExtSeedSubmissionStatus: '',
   phoneVerificationReplacementLimit: DEFAULT_PHONE_VERIFICATION_REPLACEMENT_LIMIT,
   whatsappPhoneVerificationRestartEnabled: true,
   whatsappPhoneVerificationRestartMaxAttempts: DEFAULT_WHATSAPP_PHONE_VERIFICATION_RESTART_MAX_ATTEMPTS,
@@ -3172,6 +3182,17 @@ function normalizeRegisterExtSelectedAccountId(value) {
   return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : null;
 }
 
+function normalizeRegisterExtTaskMode(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'pay_seeded') return 'pay_seeded';
+  if (normalized === 'register_then_pay') return 'register_then_pay';
+  return 'register_only';
+}
+
+function isRegisterExtPaySeededMode(state = {}) {
+  return normalizeRegisterExtTaskMode(state?.registerExtTaskMode) === 'pay_seeded';
+}
+
 function normalizeRegisterManagerApiBaseUrl() {
   return DEFAULT_REGISTER_MANAGER_API_BASE_URL;
 }
@@ -3182,8 +3203,11 @@ function normalizeStateProviderForRegisterManager(state = {}) {
     mailProvider: normalizeMailProvider(state.mailProvider),
     registerManagerApiBaseUrl: normalizeRegisterManagerApiBaseUrl(state.registerManagerApiBaseUrl),
     registerManagerGroupName: String(state.registerManagerGroupName || '').trim(),
+    registerExtTaskMode: normalizeRegisterExtTaskMode(state.registerExtTaskMode),
     registerExtSelectedAccountId: normalizeRegisterExtSelectedAccountId(state.registerExtSelectedAccountId),
     registerExtSelectedEmail: String(state.registerExtSelectedEmail || '').trim(),
+    plusCheckoutSelectedAccountId: normalizeRegisterExtSelectedAccountId(state.plusCheckoutSelectedAccountId),
+    plusCheckoutSelectedEmail: String(state.plusCheckoutSelectedEmail || '').trim(),
   };
 }
 
@@ -3958,9 +3982,13 @@ function normalizePersistentSettingValue(key, value) {
       return normalizeRegisterManagerApiBaseUrl(value);
     case 'registerManagerGroupName':
       return String(value || '').trim();
+    case 'registerExtTaskMode':
+      return normalizeRegisterExtTaskMode(value);
     case 'registerExtSelectedAccountId':
+    case 'plusCheckoutSelectedAccountId':
       return normalizeRegisterExtSelectedAccountId(value);
     case 'registerExtSelectedEmail':
+    case 'plusCheckoutSelectedEmail':
       return String(value || '').trim();
     case 'localCpaJsonPluginDir':
       return normalizeLocalCpaJsonPluginDir(value);
@@ -4684,6 +4712,8 @@ async function persistRegistrationEmailState(state = null, email, options = {}) 
           registerExtAccountId,
           registerExtCompletedAt: 0,
           registerExtCompletionStatus: '',
+          registerExtSeedSubmittedAt: 0,
+          registerExtSeedSubmissionStatus: '',
         }
       : {};
     await setEmailState(normalizedEmail, options);
@@ -4717,6 +4747,8 @@ async function persistRegistrationEmailState(state = null, email, options = {}) 
       registerExtAccountId,
       registerExtCompletedAt: 0,
       registerExtCompletionStatus: '',
+      registerExtSeedSubmittedAt: 0,
+      registerExtSeedSubmissionStatus: '',
     } : {}),
   };
 
@@ -5644,6 +5676,17 @@ async function claimRegisterManagerAccount(state = {}) {
   });
 }
 
+async function claimRegisterManagerPlusCheckoutAccount(state = {}) {
+  const client = createRegisterManagerApiClientForState(state);
+  return client.claimPlusCheckoutAccount({
+    accountId: normalizeRegisterExtSelectedAccountId(state.plusCheckoutSelectedAccountId) || undefined,
+    email: String(state.plusCheckoutSelectedEmail || '').trim() || undefined,
+    groupName: state.registerManagerGroupName || undefined,
+    clientRequestId: state.activeRunId || state.runId || undefined,
+    extensionVersion: chrome.runtime?.getManifest?.().version_name || chrome.runtime?.getManifest?.().version || undefined,
+  });
+}
+
 async function pollRegisterManagerRunCode(runId, payload = {}) {
   const state = await getState();
   const client = createRegisterManagerApiClientForState(state);
@@ -5665,6 +5708,77 @@ function isRegisterManagerRunAlreadyCompletedError(error) {
   return code === 'RUN_ALREADY_COMPLETED';
 }
 
+async function readChatGptSessionSeedForRegisterManager(state = {}) {
+  let tabInfo = null;
+  for (const source of ['plus-checkout', 'signup-page', 'chatgpt']) {
+    const tabId = Number(await getTabId(source));
+    if (Number.isInteger(tabId) && tabId > 0) {
+      tabInfo = { source, tabId };
+      break;
+    }
+  }
+  if (!tabInfo) {
+    throw new Error('未找到可读取 ChatGPT 会话的标签页。');
+  }
+  await ensureContentScriptReadyOnTab(tabInfo.source, tabInfo.tabId, {
+    inject: ['content/utils.js', 'content/operation-delay.js', 'content/plus-checkout.js'],
+    injectSource: tabInfo.source,
+    timeoutMs: 30000,
+    retryDelayMs: 800,
+    logMessage: 'RegisterExt：正在连接 ChatGPT 页面，准备读取 registration seed...',
+  });
+  const sessionResult = await sendToContentScriptResilient(tabInfo.source, {
+    type: 'PLUS_CHECKOUT_GET_STATE',
+    source: 'background',
+    payload: {
+      includeSession: true,
+      includeAccessToken: true,
+    },
+  }, {
+    timeoutMs: 15000,
+    retryDelayMs: 500,
+    logMessage: 'RegisterExt：正在等待 ChatGPT 页面返回 registration seed...',
+  });
+  if (sessionResult?.error) {
+    throw new Error(sessionResult.error);
+  }
+  return {
+    sessionToken: sessionResult?.session?.sessionToken || '',
+    accessToken: sessionResult?.accessToken || sessionResult?.session?.accessToken || '',
+    cookieHeader: '',
+    deviceId: sessionResult?.session?.account?.id || sessionResult?.session?.user?.id || '',
+    capturedAt: new Date().toISOString(),
+  };
+}
+
+async function submitRegisterManagerRunSeedForState(state = {}) {
+  if (!isRegisterManagerProvider(state) || !state?.registerExtRunId || isRegisterExtPaySeededMode(state)) {
+    return null;
+  }
+  const client = createRegisterManagerApiClientForState(state);
+  if (typeof client.submitRunSeed !== 'function') {
+    await addLog('RegisterExt：registration seed 提交通道不可用。', 'warn');
+    return null;
+  }
+  try {
+    const payload = await readChatGptSessionSeedForRegisterManager(state);
+    const response = await client.submitRunSeed(state.registerExtRunId, payload);
+    await setState({
+      registerExtSeedSubmittedAt: Date.now(),
+      registerExtSeedSubmissionStatus: 'success',
+    });
+    await addLog('RegisterExt：已在注册完成后提交 registration seed。', 'ok');
+    return response;
+  } catch (error) {
+    await setState({
+      registerExtSeedSubmittedAt: 0,
+      registerExtSeedSubmissionStatus: 'failed',
+    });
+    await addLog(`RegisterExt：提交 registration seed 失败，后续 Plus Checkout 可能无法创建：${getErrorMessage(error)}`, 'warn');
+    return null;
+  }
+}
+
 async function markRegisterManagerRunCompletion(status) {
   await setState({
     registerExtCompletedAt: Date.now(),
@@ -5673,7 +5787,7 @@ async function markRegisterManagerRunCompletion(status) {
 }
 
 async function completeRegisterManagerRunForState(state = {}, result = {}) {
-  if (!isRegisterManagerProvider(state) || !state?.registerExtRunId) {
+  if (!isRegisterManagerProvider(state) || !state?.registerExtRunId || isRegisterExtPaySeededMode(state)) {
     return null;
   }
   if (state.registerExtCompletedAt || state.registerExtCompletionStatus) {
@@ -5697,7 +5811,7 @@ async function completeRegisterManagerRunForState(state = {}, result = {}) {
     if (isRegisterManagerRunAlreadyCompletedError(error)) {
       await markRegisterManagerRunCompletion(status);
       await addLog('RegisterExt：后端 run 已完成，本次重复回写已跳过。', 'warn');
-      return null;
+      return { ok: true, alreadyCompleted: true };
     }
     await addLog(`RegisterExt：完成回写失败，流程将继续：${getErrorMessage(error)}`, 'warn');
     return null;
@@ -12498,7 +12612,10 @@ async function completeNodeFromBackground(nodeId, payload = {}) {
   await setNodeStatus(normalizedNodeId, 'completed');
   await addLog('已完成', 'ok', { nodeId: normalizedNodeId });
   if (normalizedNodeId === 'wait-registration-success') {
-    await completeRegisterManagerRunForState(latestState, { status: 'success' });
+    const completeResult = await completeRegisterManagerRunForState(latestState, { status: 'success' });
+    if (completeResult) {
+      await submitRegisterManagerRunSeedForState(latestState);
+    }
   }
 
   if (normalizedNodeId === lastNodeId) {
@@ -14129,162 +14246,46 @@ function shouldStopEmailAutoFetchRetries(generator, error) {
 async function ensureAutoEmailReady(targetRun, totalRuns, attemptRuns) {
   const currentState = await getState();
   if (isRegisterManagerProvider(currentState)) {
-    const updates = {
-      email: null,
-      registrationEmailState: { ...DEFAULT_REGISTRATION_EMAIL_STATE },
-      registerExtRunId: '',
-      registerExtAccountId: null,
-      registerExtCompletedAt: 0,
-      registerExtCompletionStatus: '',
-    };
-    await setState(updates);
-    broadcastDataUpdate(updates);
-    await addLog(
-      `=== 目标 ${targetRun}/${totalRuns} 轮：RegisterExt API 服务已启用，将在注册步骤自动领取邮箱（第 ${attemptRuns} 次尝试）===`,
-      'info'
-    );
-    return null;
-  }
-
-  if (isHotmailProvider(currentState)) {
-    const account = await ensureHotmailAccountForFlow({
-      allowAllocate: true,
-      markUsed: true,
-      preferredAccountId: null,
-    });
-    await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮：已分配 Hotmail 账号 ${account.email}（第 ${attemptRuns} 次尝试）===`, 'ok');
-    return account.registrationAliasEmail || (await getState()).email || account.email;
-  }
-
-  if (isLuckmailProvider(currentState)) {
-    const purchase = await ensureLuckmailPurchaseForFlow({ allowReuse: true });
-    await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮：LuckMail 邮箱已就绪：${purchase.email_address}（第 ${attemptRuns} 次尝试）===`, 'ok');
-    return purchase.email_address;
-  }
-
-  if (isGeneratedAliasProvider(currentState)) {
-    if (currentState.mailProvider === GMAIL_PROVIDER) {
-      if (!currentState.emailPrefix) {
-        throw new Error('Gmail 原邮箱未设置，请先在侧边栏填写。');
-      }
-      await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮：Gmail +tag 模式已启用，将在步骤 3 自动生成邮箱（第 ${attemptRuns} 次尝试）===`, 'info');
-      return null;
-    }
-    if (!currentState.emailPrefix) {
-      throw new Error('2925 邮箱前缀未设置，请先在侧边栏填写。');
-    }
-    await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮：2925 模式已启用，将在步骤 3 自动生成邮箱（第 ${attemptRuns} 次尝试）===`, 'info');
-    return null;
-  }
-
-  if (currentState.email) {
-    return currentState.email;
-  }
-
-  if (isCustomMailProvider(currentState)) {
-    const poolSize = getCustomMailProviderPool(currentState).length;
-    if (poolSize > 0) {
-      const queuedEmail = getCustomMailProviderPoolEmailForRun(currentState, targetRun);
-      if (!queuedEmail) {
-        throw new Error(`自定义邮箱号池第 ${targetRun} 个邮箱不存在，请检查号池数量是否与自动轮数一致。`);
-      }
-      await setEmailState(queuedEmail);
-      await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮：自定义邮箱号池已就绪：${queuedEmail}（第 ${attemptRuns} 次尝试；第 4/8 步仍需手动输入验证码）===`, 'ok');
-      return queuedEmail;
-    }
-  }
-
-  if (isCustomEmailPoolGenerator(currentState)) {
-    const queuedEmail = getCustomEmailPoolEmailForRun(currentState, targetRun);
-    if (!queuedEmail) {
-      const poolSize = getCustomEmailPool(currentState).length;
-      throw new Error(
-        poolSize > 0
-          ? `自定义邮箱池第 ${targetRun} 个邮箱不存在，请检查邮箱池数量是否与自动轮数一致。`
-          : '自定义邮箱池为空，请先至少填写 1 个邮箱。'
-      );
-    }
-    await setEmailState(queuedEmail);
-    await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮：自定义邮箱池已就绪：${queuedEmail}（第 ${attemptRuns} 次尝试）===`, 'ok');
-    return queuedEmail;
-  }
-
-  if (shouldUseCustomRegistrationEmail(currentState)) {
-    await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮已暂停：请先填写自定义注册邮箱，然后继续 ===`, 'warn');
-    await broadcastAutoRunStatus('waiting_email', {
-      currentRun: targetRun,
-      totalRuns,
-      attemptRun: attemptRuns,
-    });
-
-    await waitForResume();
-
-    const resumedState = await getState();
-    if (!resumedState.email) {
-      throw new Error('无法继续：当前没有注册邮箱。');
-    }
-    return resumedState.email;
-  }
-
-  const generator = normalizeEmailGenerator(currentState.emailGenerator);
-  const generatorLabel = getEmailGeneratorLabel(generator);
-  let lastError = null;
-  let attemptedFetches = 0;
-  for (let attempt = 1; attempt <= EMAIL_FETCH_MAX_ATTEMPTS; attempt++) {
-    attemptedFetches = attempt;
-    try {
-      if (attempt > 1) {
-        await addLog(`${generatorLabel}：正在进行第 ${attempt}/${EMAIL_FETCH_MAX_ATTEMPTS} 次自动获取重试...`, 'warn');
-      }
-      const generatedEmail = await fetchGeneratedEmail(currentState, {
-        generateNew: generator !== 'icloud' || normalizeIcloudFetchMode(currentState.icloudFetchMode) === 'always_new',
-        generator,
-      });
+    if (isRegisterExtPaySeededMode(currentState)) {
+      const claim = await claimRegisterManagerPlusCheckoutAccount(currentState);
+      const account = claim?.account || {};
+      const updates = {
+        email: account.email || null,
+        registrationEmailState: { ...DEFAULT_REGISTRATION_EMAIL_STATE },
+        plusCheckoutRunId: String(claim?.runId || '').trim(),
+        plusCheckoutAccountId: account.accountId || null,
+        plusCheckoutUuid: '',
+        plusCheckoutStatus: '',
+        plusCheckoutPaymentStatus: '',
+        registerExtRunId: '',
+        registerExtAccountId: null,
+        registerExtCompletedAt: 0,
+        registerExtCompletionStatus: '',
+        registerExtSeedSubmittedAt: 0,
+        registerExtSeedSubmissionStatus: '',
+      };
+      await setState(updates);
+      broadcastDataUpdate(updates);
       await addLog(
-        `=== 目标 ${targetRun}/${totalRuns} 轮：${generatorLabel}已就绪：${generatedEmail}（第 ${attemptRuns} 次尝试，第 ${attempt}/${EMAIL_FETCH_MAX_ATTEMPTS} 次获取）===`,
-        'ok'
+        `=== 目标 ${targetRun}/${totalRuns} 轮：RegisterExt API 已领取支付账号 ${account.email || account.accountId || ''}（第 ${attemptRuns} 次尝试）===`,
+        'info'
       );
-      return generatedEmail;
-    } catch (err) {
-      lastError = err;
-      await addLog(`${generatorLabel}自动获取失败（${attempt}/${EMAIL_FETCH_MAX_ATTEMPTS}）：${err.message}`, 'warn');
-      if (generator === 'icloud' && shouldStopIcloudAutoFetchRetries(err)) {
-        await addLog('iCloud：检测到会话/网络异常，本轮将停止重复重试。请先确认 iCloud 页面已登录，再点击“我已登录”或手动粘贴邮箱继续。', 'warn');
-      }
-      if (shouldStopEmailAutoFetchRetries(generator, err)) {
-        break;
-      }
+      return account.email || null;
     }
-  }
-
-  const totalAttempts = Math.max(1, attemptedFetches);
-  await addLog(`${generatorLabel}自动获取已连续失败 ${totalAttempts} 次：${lastError?.message || '未知错误'}`, 'error');
-  await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮已暂停：请先自动获取邮箱或手动粘贴邮箱，然后继续 ===`, 'warn');
-  await broadcastAutoRunStatus('waiting_email', {
-    currentRun: targetRun,
-    totalRuns,
-    attemptRun: attemptRuns,
-  });
-
-  await waitForResume();
-
-  const resumedState = await getState();
-  if (!resumedState.email) {
-    throw new Error('无法继续：当前没有邮箱地址。');
-  }
-  return resumedState.email;
-}
-
-async function ensureAutoEmailReady(targetRun, totalRuns, attemptRuns) {
-  const currentState = await getState();
-  if (isRegisterManagerProvider(currentState)) {
     const updates = {
       email: null,
       registrationEmailState: { ...DEFAULT_REGISTRATION_EMAIL_STATE },
+      plusCheckoutRunId: '',
+      plusCheckoutAccountId: null,
+      plusCheckoutUuid: '',
+      plusCheckoutStatus: '',
+      plusCheckoutPaymentStatus: '',
       registerExtRunId: '',
       registerExtAccountId: null,
       registerExtCompletedAt: 0,
       registerExtCompletionStatus: '',
+      registerExtSeedSubmittedAt: 0,
+      registerExtSeedSubmissionStatus: '',
     };
     await setState(updates);
     broadcastDataUpdate(updates);
@@ -15356,6 +15357,7 @@ const plusCheckoutCreateExecutor = self.MultiPageBackgroundPlusCheckoutCreate?.c
   addLog,
   broadcastDataUpdate,
   chrome,
+  claimRegisterManagerPlusCheckoutAccount,
   completeNodeFromBackground,
   createAutomationTab,
   enableHostedCheckoutAutomation: true,

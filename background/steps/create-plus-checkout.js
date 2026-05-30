@@ -130,6 +130,7 @@
       fetch: fetchImpl = null,
       getStepIdByKeyForState = null,
       getState = null,
+      claimRegisterManagerPlusCheckoutAccount = null,
       requestStop = null,
       registerTab,
       restoreCheckoutScopedProxySnapshot = null,
@@ -4704,16 +4705,56 @@ function FindProxyForURL(url, host) {
 
     async function executePlusCheckoutCreate(state = {}) {
       activeVisibleStep = getCheckoutCreateDisplayStep(state);
-      if (registerManagerApiClient && (state?.plusCheckoutRunId || state?.registerExtRunId)) {
-        const runId = String(state.plusCheckoutRunId || state.registerExtRunId || '').trim();
-        const createCheckout = state.plusCheckoutRunId
+      let effectiveState = state || {};
+      if (
+        registerManagerApiClient
+        && !effectiveState.plusCheckoutRunId
+        && !effectiveState.registerExtRunId
+        && String(effectiveState.mailProvider || effectiveState.provider || '').trim().toLowerCase() === 'register-manager-api'
+        && String(effectiveState.registerExtTaskMode || '').trim().toLowerCase() === 'pay_seeded'
+      ) {
+        if (typeof claimRegisterManagerPlusCheckoutAccount !== 'function') {
+          throw new Error('步骤 6：RegisterExt 仅支付模式缺少账号领取通道。');
+        }
+        const claim = await claimRegisterManagerPlusCheckoutAccount(effectiveState);
+        const account = claim?.account || {};
+        effectiveState = {
+          ...effectiveState,
+          email: account.email || effectiveState.email || null,
+          plusCheckoutRunId: String(claim?.runId || '').trim(),
+          plusCheckoutAccountId: account.accountId || effectiveState.plusCheckoutAccountId || null,
+          registerExtRunId: '',
+          registerExtAccountId: null,
+        };
+        await setState({
+          email: effectiveState.email,
+          plusCheckoutRunId: effectiveState.plusCheckoutRunId,
+          plusCheckoutAccountId: effectiveState.plusCheckoutAccountId,
+          registerExtRunId: '',
+          registerExtAccountId: null,
+        });
+        await addLog(`步骤 6：RegisterExt API 已领取支付账号 ${account.email || account.accountId || ''}。`, 'info');
+      }
+      if (effectiveState?.registerExtRunId && !effectiveState?.plusCheckoutRunId) {
+        const completionStatus = String(effectiveState?.registerExtCompletionStatus || '').trim().toLowerCase();
+        if (completionStatus !== 'success') {
+          throw new Error('步骤 6：注册尚未成功回写，已阻止创建 Plus Checkout。');
+        }
+        const seedStatus = String(effectiveState?.registerExtSeedSubmissionStatus || '').trim().toLowerCase();
+        if (seedStatus !== 'success') {
+          throw new Error('步骤 6：registration seed 尚未成功提交，已阻止创建 Plus Checkout。');
+        }
+      }
+      if (registerManagerApiClient && (effectiveState?.plusCheckoutRunId || effectiveState?.registerExtRunId)) {
+        const runId = String(effectiveState.plusCheckoutRunId || effectiveState.registerExtRunId || '').trim();
+        const createCheckout = effectiveState.plusCheckoutRunId
           ? registerManagerApiClient.createPlusCheckoutRun
           : registerManagerApiClient.createRunCheckout;
         if (typeof createCheckout === 'function' && runId) {
           await addLog('步骤 6：正在通过 RegisterExt API 创建 Plus Checkout...', 'info');
           const response = await createCheckout(runId, {
-            checkoutRegion: state.plusCheckoutMode || 'us_pp',
-            plusCheckoutMode: state.plusCheckoutMode || 'us_pp',
+            checkoutRegion: effectiveState.plusCheckoutMode || 'us_pp',
+            plusCheckoutMode: effectiveState.plusCheckoutMode || 'us_pp',
           });
           const checkout = response?.checkout || {};
           const checkoutUrl = String(checkout.preferredCheckoutUrl || checkout.checkoutUrl || checkout.hostedCheckoutUrl || '').trim();
@@ -4726,9 +4767,9 @@ function FindProxyForURL(url, host) {
           const tabId = Number(tab?.id) || null;
           await setState({
             plusCheckoutRunId: runId,
-            plusCheckoutAccountId: checkout.accountId || state.plusCheckoutAccountId || state.registerExtAccountId || null,
+            plusCheckoutAccountId: checkout.accountId || effectiveState.plusCheckoutAccountId || effectiveState.registerExtAccountId || null,
             plusCheckoutUuid: checkout.checkoutUuid || '',
-            plusCheckoutSessionId: checkout.checkoutSessionId || '',
+            plusCheckoutSessionId: '',
             plusCheckoutSessionIdMasked: checkout.checkoutSessionIdMasked || '',
             plusCheckoutStatus: checkout.status || 'created',
             plusCheckoutPaymentStatus: checkout.paymentStatus || 'pending',

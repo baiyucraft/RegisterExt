@@ -64,7 +64,8 @@ test('sidepanel removes guide, password, and Plus mode toggle while keeping chec
   assert.match(sidepanel, /function getFixedPlusModeEnabled\(\)[\s\S]*?return typeof FIXED_PLUS_MODE_ENABLED === 'boolean' \? FIXED_PLUS_MODE_ENABLED : true;/);
   assert.match(sidepanel, /const selectedPlusCheckoutMode = getSelectedPlusCheckoutMode\(latestState\);/);
   assert.match(sidepanel, /syncLatestState\(\{ plusCheckoutMode: selectedPlusCheckoutMode \}\);/);
-  assert.match(sidepanel, /plusModeEnabled:\s*getFixedPlusModeEnabled\(\)/);
+  assert.match(sidepanel, /function getEffectivePlusModeEnabled/);
+  assert.match(sidepanel, /plusModeEnabled:\s*getEffectivePlusModeEnabled\(/);
   assert.doesNotMatch(sidepanel, /customPassword:\s*inputPassword\.value/);
   assert.doesNotMatch(sidepanel, /inputPassword\.addEventListener/);
   assert.doesNotMatch(sidepanel, /btnTogglePassword\.addEventListener/);

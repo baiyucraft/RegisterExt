@@ -275,10 +275,15 @@ const inputGoPayOtp = document.getElementById('input-gopay-otp');
 const rowGoPayPin = document.getElementById('row-gopay-pin');
 const inputGoPayPin = document.getElementById('input-gopay-pin');
 const selectMailProvider = document.getElementById('select-mail-provider');
+const rowRegisterExtTaskMode = document.getElementById('row-register-ext-task-mode');
+const registerExtTaskModeInputs = Array.from(document.querySelectorAll('input[name="register-ext-task-mode"]'));
 const inputRegisterManagerGroupName = document.getElementById('input-register-manager-group-name');
-const rowRegisterManagerAccountPicker = document.getElementById('row-register-manager-account-picker');
+const rowRegisterManagerAccountPicker = document.getElementById('row-register-manager-account');
 const selectRegisterManagerAccount = document.getElementById('select-register-manager-account');
 const btnRefreshRegisterManagerAccounts = document.getElementById('btn-refresh-register-manager-accounts');
+const rowPlusCheckoutAccount = document.getElementById('row-plus-checkout-account');
+const selectPlusCheckoutAccount = document.getElementById('select-plus-checkout-account');
+const btnRefreshPlusCheckoutAccounts = document.getElementById('btn-refresh-plus-checkout-accounts');
 const btnMailLogin = document.getElementById('btn-mail-login');
 const rowCustomMailProviderPool = document.getElementById('row-custom-mail-provider-pool');
 const inputCustomMailProviderPool = document.getElementById('input-custom-mail-provider-pool');
@@ -633,6 +638,10 @@ const DEFAULT_PLUS_PAYMENT_METHOD = PLUS_PAYMENT_METHOD_PAYPAL;
 const PLUS_CHECKOUT_MODE_US_PP = 'us_pp';
 const PLUS_CHECKOUT_MODE_JP_PP = 'jp_pp';
 const DEFAULT_PLUS_CHECKOUT_MODE = PLUS_CHECKOUT_MODE_US_PP;
+const REGISTER_EXT_TASK_MODE_REGISTER_ONLY = 'register_only';
+const REGISTER_EXT_TASK_MODE_REGISTER_THEN_PAY = 'register_then_pay';
+const REGISTER_EXT_TASK_MODE_PAY_SEEDED = 'pay_seeded';
+const DEFAULT_REGISTER_EXT_TASK_MODE = REGISTER_EXT_TASK_MODE_REGISTER_ONLY;
 const PLUS_CHECKOUT_MODE_LABELS = Object.freeze({
   [PLUS_CHECKOUT_MODE_US_PP]: '美区PP Plus Checkout',
   [PLUS_CHECKOUT_MODE_JP_PP]: '日区PP Plus Checkout',
@@ -657,6 +666,23 @@ const PROVIDER_REUSE_LOCK_TITLE = '当前接码服务商不支持号码复用';
 const PROVIDER_FREE_REUSE_LOCK_TITLE = '当前接码服务商不支持白嫖复用';
 function getFixedPlusModeEnabled() {
   return typeof FIXED_PLUS_MODE_ENABLED === 'boolean' ? FIXED_PLUS_MODE_ENABLED : true;
+}
+function normalizeRegisterExtTaskMode(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === REGISTER_EXT_TASK_MODE_PAY_SEEDED) return REGISTER_EXT_TASK_MODE_PAY_SEEDED;
+  if (normalized === REGISTER_EXT_TASK_MODE_REGISTER_THEN_PAY) return REGISTER_EXT_TASK_MODE_REGISTER_THEN_PAY;
+  return REGISTER_EXT_TASK_MODE_REGISTER_ONLY;
+}
+function getSelectedRegisterExtTaskMode(state = latestState) {
+  const selected = registerExtTaskModeInputs.find((input) => input.checked)?.value;
+  return normalizeRegisterExtTaskMode(selected || state?.registerExtTaskMode || DEFAULT_REGISTER_EXT_TASK_MODE);
+}
+function isRegisterExtPaySeededMode(state = latestState) {
+  return getSelectedRegisterExtTaskMode(state) === REGISTER_EXT_TASK_MODE_PAY_SEEDED;
+}
+function getEffectivePlusModeEnabled(state = latestState) {
+  const mode = getSelectedRegisterExtTaskMode(state);
+  return mode === REGISTER_EXT_TASK_MODE_REGISTER_THEN_PAY || mode === REGISTER_EXT_TASK_MODE_PAY_SEEDED;
 }
 function getFixedPhoneVerificationEnabled() {
   return false;
@@ -699,12 +725,14 @@ let stepDefinitions = getStepDefinitionsForMode(false, {
   plusPaymentMethod: currentPlusPaymentMethod,
   plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
   signupMethod: currentSignupMethod,
+  registerExtTaskMode: DEFAULT_REGISTER_EXT_TASK_MODE,
   phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
 });
 let workflowNodes = getWorkflowNodesForMode(false, {
   plusPaymentMethod: currentPlusPaymentMethod,
   plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
   signupMethod: currentSignupMethod,
+  registerExtTaskMode: DEFAULT_REGISTER_EXT_TASK_MODE,
   phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
 });
 let STEP_IDS = stepDefinitions.map((step) => Number(step.id)).filter(Number.isFinite);
@@ -1015,6 +1043,9 @@ function getStepDefinitionsForMode(plusModeEnabled = false, options = {}) {
     plusModeEnabled,
     plusPaymentMethod: normalizePlusPaymentMethod(rawPaymentMethod),
     signupMethod: normalizeSignupMethod(rawSignupMethod),
+    registerExtTaskMode: typeof options === 'string'
+      ? getSelectedRegisterExtTaskMode(latestState)
+      : normalizeRegisterExtTaskMode(options.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState)),
     phoneSignupReloginAfterBindEmailEnabled,
   };
   const normalizedAccountAccessStrategy = typeof normalizePlusAccountAccessStrategy === 'function'
@@ -1061,6 +1092,9 @@ function getWorkflowNodesForMode(plusModeEnabled = false, options = {}) {
     plusModeEnabled,
     plusPaymentMethod: normalizePlusPaymentMethod(rawPaymentMethod),
     signupMethod: normalizeSignupMethod(rawSignupMethod),
+    registerExtTaskMode: typeof options === 'string'
+      ? getSelectedRegisterExtTaskMode(latestState)
+      : normalizeRegisterExtTaskMode(options.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState)),
     phoneSignupReloginAfterBindEmailEnabled,
   };
   const normalizedAccountAccessStrategy = typeof normalizePlusAccountAccessStrategy === 'function'
@@ -1151,6 +1185,7 @@ function rebuildStepDefinitionState(plusModeEnabled = false, options = {}) {
     plusPaymentMethod: currentPlusPaymentMethod,
     plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
     signupMethod: currentSignupMethod,
+    registerExtTaskMode: normalizeRegisterExtTaskMode(options?.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState)),
     phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
   });
   const nextWorkflowNodes = typeof getWorkflowNodesForMode === 'function'
@@ -1160,6 +1195,7 @@ function rebuildStepDefinitionState(plusModeEnabled = false, options = {}) {
       plusPaymentMethod: currentPlusPaymentMethod,
       plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
       signupMethod: currentSignupMethod,
+      registerExtTaskMode: normalizeRegisterExtTaskMode(options?.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState)),
       phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
     })
     : stepDefinitions.map((step) => ({
@@ -2554,7 +2590,7 @@ function syncLatestState(nextState) {
   latestState = normalizePlusCheckoutStateForUi({
     ...(latestState || {}),
     ...(nextState || {}),
-    plusModeEnabled: getFixedPlusModeEnabled(),
+    plusModeEnabled: getEffectivePlusModeEnabled(latestState),
     phoneVerificationEnabled: getFixedPhoneVerificationEnabled(),
     signupMethod: normalizeSignupMethod((nextState || latestState || {})?.signupMethod || DEFAULT_SIGNUP_METHOD) === SIGNUP_METHOD_PHONE
       ? SIGNUP_METHOD_EMAIL
@@ -5011,10 +5047,13 @@ function collectSettingsPayload() {
     ...(contributionModeEnabled ? {} : {
       customPassword: getCustomPasswordInputValue(latestState),
     }),
+    registerExtTaskMode: getSelectedRegisterExtTaskMode(latestState),
     mailProvider: supportedMailProviderNormalizer(selectMailProvider?.value || latestState?.mailProvider),
     registerManagerGroupName: String(inputRegisterManagerGroupName?.value || '').trim(),
     registerExtSelectedAccountId: normalizeRegisterManagerSelectedAccountId(selectRegisterManagerAccount?.value),
     registerExtSelectedEmail: String(selectRegisterManagerAccount?.selectedOptions?.[0]?.dataset?.email || '').trim(),
+    plusCheckoutSelectedAccountId: normalizeRegisterManagerSelectedAccountId(selectPlusCheckoutAccount?.value),
+    plusCheckoutSelectedEmail: String(selectPlusCheckoutAccount?.selectedOptions?.[0]?.dataset?.email || '').trim(),
     mail2925Mode: getSelectedMail2925Mode(),
     mail2925UseAccountPool,
     currentMail2925AccountId: String(latestState?.currentMail2925AccountId || '').trim(),
@@ -5153,6 +5192,7 @@ function collectSettingsPayload() {
       : true,
     phoneVerificationEnabled: effectivePhoneVerificationEnabled,
     signupMethod: effectiveSignupMethod,
+    registerExtTaskMode: getSelectedRegisterExtTaskMode(latestState),
     phoneSignupReloginAfterBindEmailEnabled: typeof inputPhoneSignupReloginAfterBindEmail !== 'undefined' && inputPhoneSignupReloginAfterBindEmail
       ? Boolean(inputPhoneSignupReloginAfterBindEmail.checked)
       : false,
@@ -10054,7 +10094,8 @@ function resolveCurrentSidepanelCapabilities(options = {}) {
   const state = {
     ...(latestState || {}),
     ...(options?.state || {}),
-    plusModeEnabled: getFixedPlusModeEnabled(),
+    registerExtTaskMode: normalizeRegisterExtTaskMode(options?.state?.registerExtTaskMode || latestState?.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState)),
+    plusModeEnabled: getEffectivePlusModeEnabled({ ...(latestState || {}), ...(options?.state || {}) }),
   };
   return registry.resolveSidepanelCapabilities({
     activeFlowId: options?.activeFlowId ?? state?.activeFlowId,
@@ -10069,7 +10110,8 @@ function resolveStepDefinitionCapabilityState(state = latestState, options = {})
   const nextState = {
     ...(state || {}),
     ...(options?.state || {}),
-    plusModeEnabled: getFixedPlusModeEnabled(),
+    registerExtTaskMode: normalizeRegisterExtTaskMode(options?.state?.registerExtTaskMode || state?.registerExtTaskMode || getSelectedRegisterExtTaskMode(state)),
+    plusModeEnabled: getEffectivePlusModeEnabled({ ...(state || {}), ...(options?.state || {}) }),
   };
   const capabilityState = resolveCurrentSidepanelCapabilities({
     activeFlowId: options?.activeFlowId ?? nextState?.activeFlowId,
@@ -10080,7 +10122,8 @@ function resolveStepDefinitionCapabilityState(state = latestState, options = {})
   });
   return {
     capabilityState,
-    plusModeEnabled: getFixedPlusModeEnabled(),
+    plusModeEnabled: getEffectivePlusModeEnabled(nextState),
+    registerExtTaskMode: nextState.registerExtTaskMode,
     signupMethod: capabilityState?.effectiveSignupMethod
       || normalizeSignupMethod((options?.signupMethod ?? nextState?.signupMethod) || DEFAULT_SIGNUP_METHOD),
     plusAccountAccessStrategy: capabilityState?.effectivePlusAccountAccessStrategy
@@ -10088,6 +10131,27 @@ function resolveStepDefinitionCapabilityState(state = latestState, options = {})
         options?.plusAccountAccessStrategy ?? nextState?.plusAccountAccessStrategy
       ),
   };
+}
+
+function updateRegisterExtTaskModeUI() {
+  const mode = getSelectedRegisterExtTaskMode(latestState);
+  const usesRegisterAccount = mode !== REGISTER_EXT_TASK_MODE_PAY_SEEDED;
+  const usesPlusCheckout = mode !== REGISTER_EXT_TASK_MODE_REGISTER_ONLY;
+  if (rowRegisterManagerAccountPicker) {
+    rowRegisterManagerAccountPicker.style.display = usesRegisterAccount ? '' : 'none';
+  }
+  if (rowPlusCheckoutAccount) {
+    rowPlusCheckoutAccount.style.display = mode === REGISTER_EXT_TASK_MODE_PAY_SEEDED ? '' : 'none';
+  }
+  if (rowPlusMode) {
+    rowPlusMode.style.display = usesPlusCheckout ? '' : 'none';
+  }
+  if (rowHostedCheckoutSmsPool) {
+    rowHostedCheckoutSmsPool.style.display = usesPlusCheckout ? '' : 'none';
+  }
+  if (rowHostedCheckoutResendSettings) {
+    rowHostedCheckoutResendSettings.style.display = usesPlusCheckout ? '' : 'none';
+  }
 }
 
 function getSelectedPanelMode() {
@@ -10226,19 +10290,20 @@ function updateSignupMethodUI(options = {}) {
   const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
     ? resolveStepDefinitionCapabilityState({
       ...(latestState || {}),
-      plusModeEnabled: getFixedPlusModeEnabled(),
+      plusModeEnabled: getEffectivePlusModeEnabled(latestState),
       signupMethod: selectedMethod,
     }, {
       signupMethod: selectedMethod,
     })
     : {
-      plusModeEnabled: getFixedPlusModeEnabled(),
+      plusModeEnabled: getEffectivePlusModeEnabled(latestState),
       signupMethod: selectedMethod,
     };
   syncStepDefinitionsForMode(stepDefinitionState.plusModeEnabled, {
     plusPaymentMethod: getSelectedPlusPaymentMethod(latestState),
     plusAccountAccessStrategy: stepDefinitionState.plusAccountAccessStrategy,
     signupMethod: stepDefinitionState.signupMethod,
+    registerExtTaskMode: stepDefinitionState.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState),
     phoneSignupReloginAfterBindEmailEnabled: typeof inputPhoneSignupReloginAfterBindEmail !== 'undefined' && inputPhoneSignupReloginAfterBindEmail
       ? Boolean(inputPhoneSignupReloginAfterBindEmail.checked)
       : currentPhoneSignupReloginAfterBindEmailEnabled,
@@ -11548,6 +11613,7 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
     || (typeof latestState !== 'undefined' ? latestState?.activeFlowId : '')
     || defaultFlowId
   ).trim().toLowerCase() || defaultFlowId;
+  const nextRegisterExtTaskMode = normalizeRegisterExtTaskMode(options.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState));
   const rootScope = typeof window !== 'undefined' ? window : globalThis;
   const currentPaymentStep = stepDefinitions.find((step) => step.key === 'paypal-approve');
   const nextPaymentTitle = rootScope.MultiPageStepDefinitions?.getPlusPaymentStepTitle?.({
@@ -11555,6 +11621,7 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
     plusModeEnabled: nextPlusModeEnabled,
     plusPaymentMethod: nextPaymentMethod,
     signupMethod: nextSignupMethod,
+    registerExtTaskMode: nextRegisterExtTaskMode,
     phoneSignupReloginAfterBindEmailEnabled: nextPhoneSignupReloginAfterBindEmailEnabled,
   });
   const paymentTitleChanged = Boolean(nextPlusModeEnabled && currentPaymentStep && nextPaymentTitle && currentPaymentStep.title !== nextPaymentTitle);
@@ -11575,6 +11642,7 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
     plusPaymentMethod: nextPaymentMethod,
     plusAccountAccessStrategy: nextAccountAccessStrategy,
     signupMethod: nextSignupMethod,
+    registerExtTaskMode: nextRegisterExtTaskMode,
     phoneSignupReloginAfterBindEmailEnabled: nextPhoneSignupReloginAfterBindEmailEnabled,
   });
   renderStepsList();
@@ -11602,6 +11670,7 @@ function applySettingsState(state) {
       plusPaymentMethod: state?.plusPaymentMethod,
       plusAccountAccessStrategy: state?.plusAccountAccessStrategy,
       signupMethod: stepDefinitionState.signupMethod,
+      registerExtTaskMode: stepDefinitionState.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState),
       phoneSignupReloginAfterBindEmailEnabled: Boolean(state?.phoneSignupReloginAfterBindEmailEnabled),
     });
   }
@@ -11985,10 +12054,16 @@ function applySettingsState(state) {
   if (inputRegisterManagerGroupName) {
     inputRegisterManagerGroupName.value = String(state?.registerManagerGroupName || '').trim();
   }
+  const restoredTaskMode = normalizeRegisterExtTaskMode(state?.registerExtTaskMode);
+  registerExtTaskModeInputs.forEach((input) => {
+    input.checked = input.value === restoredTaskMode;
+  });
   if (rowRegisterManagerAccountPicker) {
-    rowRegisterManagerAccountPicker.style.display = restoredMailProvider === REGISTER_MANAGER_MAIL_PROVIDER ? '' : 'none';
+    rowRegisterManagerAccountPicker.style.display = restoredMailProvider === REGISTER_MANAGER_MAIL_PROVIDER && restoredTaskMode !== REGISTER_EXT_TASK_MODE_PAY_SEEDED ? '' : 'none';
   }
   setRegisterManagerAccountOptions([], state?.registerExtSelectedAccountId);
+  setPlusCheckoutAccountOptions([], state?.plusCheckoutSelectedAccountId);
+  updateRegisterExtTaskModeUI();
   inputHotmailRemoteBaseUrl.value = state?.hotmailRemoteBaseUrl || '';
   inputHotmailLocalBaseUrl.value = state?.hotmailLocalBaseUrl || '';
   if (typeof inputHotmailAliasEnabled !== 'undefined' && inputHotmailAliasEnabled) {
@@ -12900,6 +12975,50 @@ function setRegisterManagerAccountOptions(items = [], selectedAccountId = latest
   selectRegisterManagerAccount.value = hasSelected ? String(selectedId) : '';
 }
 
+function formatPlusCheckoutAccountOption(account = {}) {
+  const email = String(account.email || '').trim();
+  const group = String(account.groupName || account.group_name || '').trim();
+  const seedStatus = String(account.seedStatus || '').trim();
+  return [email || `账号 ${account.accountId || account.id || ''}`, group, seedStatus].filter(Boolean).join(' / ');
+}
+
+function setPlusCheckoutAccountOptions(items = [], selectedAccountId = latestState?.plusCheckoutSelectedAccountId) {
+  if (!selectPlusCheckoutAccount) {
+    return;
+  }
+  const selectedId = normalizeRegisterManagerSelectedAccountId(selectedAccountId);
+  const selectedEmail = String(latestState?.plusCheckoutSelectedEmail || '').trim();
+  selectPlusCheckoutAccount.innerHTML = '';
+  const autoOption = document.createElement('option');
+  autoOption.value = '';
+  autoOption.textContent = '自动选择有 seed 的账号';
+  selectPlusCheckoutAccount.appendChild(autoOption);
+
+  let hasSelected = false;
+  (Array.isArray(items) ? items : []).forEach((account) => {
+    const accountId = normalizeRegisterManagerSelectedAccountId(account?.accountId);
+    if (!accountId) return;
+    const option = document.createElement('option');
+    option.value = String(accountId);
+    option.dataset.email = String(account.email || '').trim();
+    option.textContent = formatPlusCheckoutAccountOption(account);
+    selectPlusCheckoutAccount.appendChild(option);
+    if (selectedId === accountId) {
+      hasSelected = true;
+    }
+  });
+
+  if (selectedId && !hasSelected) {
+    const preservedOption = document.createElement('option');
+    preservedOption.value = String(selectedId);
+    preservedOption.dataset.email = selectedEmail;
+    preservedOption.textContent = selectedEmail ? `${selectedEmail} / 已选择` : `已选择账号 ${selectedId}`;
+    selectPlusCheckoutAccount.appendChild(preservedOption);
+    hasSelected = true;
+  }
+  selectPlusCheckoutAccount.value = hasSelected ? String(selectedId) : '';
+}
+
 async function refreshRegisterManagerAccountCandidates(options = {}) {
   if (!selectRegisterManagerAccount) {
     return [];
@@ -12935,6 +13054,54 @@ async function refreshRegisterManagerAccountCandidates(options = {}) {
       btnRefreshRegisterManagerAccounts.textContent = '刷新';
     }
   }
+}
+
+async function refreshPlusCheckoutAccountCandidates(options = {}) {
+  if (!selectPlusCheckoutAccount) {
+    return [];
+  }
+  const { silent = false } = options;
+  const previousDisabled = Boolean(btnRefreshPlusCheckoutAccounts?.disabled);
+  if (btnRefreshPlusCheckoutAccounts) {
+    btnRefreshPlusCheckoutAccounts.disabled = true;
+    btnRefreshPlusCheckoutAccounts.textContent = '刷新中';
+  }
+  try {
+    const client = createRegisterManagerApiClientFromSettings();
+    const result = await client.listPlusCheckoutCandidates({
+      page: 1,
+      pageSize: 100,
+      groupName: getRegisterManagerGroupNameFromSettings() || undefined,
+    });
+    const items = Array.isArray(result?.items) ? result.items : [];
+    setPlusCheckoutAccountOptions(items);
+    if (!silent) {
+      showToast(`已刷新 ${items.length} 个支付候选账号`, 'success', 1600);
+    }
+    return items;
+  } catch (err) {
+    if (!silent) {
+      showToast(`支付候选账号刷新失败：${err.message}`, 'error');
+    }
+    setPlusCheckoutAccountOptions([]);
+    return [];
+  } finally {
+    if (btnRefreshPlusCheckoutAccounts) {
+      btnRefreshPlusCheckoutAccounts.disabled = previousDisabled;
+      btnRefreshPlusCheckoutAccounts.textContent = '刷新';
+    }
+  }
+}
+
+function maybeQueueRegisterExtCandidateRefresh() {
+  if (!isRegisterManagerProvider()) {
+    return;
+  }
+  if (getSelectedRegisterExtTaskMode() === REGISTER_EXT_TASK_MODE_PAY_SEEDED) {
+    refreshPlusCheckoutAccountCandidates({ silent: true }).catch(() => { });
+    return;
+  }
+  refreshRegisterManagerAccountCandidates({ silent: true }).catch(() => { });
 }
 
 function isIcloudMailProvider(provider = selectMailProvider.value) {
@@ -15210,7 +15377,7 @@ function validateHostedCheckoutContactConfig(options = {}) {
   const paymentMethod = typeof getSelectedPlusPaymentMethod === 'function'
     ? getSelectedPlusPaymentMethod(latestState)
     : 'paypal';
-  const plusModeEnabled = getFixedPlusModeEnabled();
+  const plusModeEnabled = getEffectivePlusModeEnabled(latestState);
   const poolText = normalizeHostedCheckoutSmsPoolTextValue(inputHostedCheckoutSmsPool?.value || latestState?.hostedCheckoutSmsPoolText || '');
   const required = plusModeEnabled && paymentMethod === 'paypal' && !poolText;
   const valid = !required;
@@ -15864,7 +16031,7 @@ async function startAutoRunFromCurrentSettings() {
       panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode,
       signupMethod: typeof getSelectedSignupMethod === 'function' ? getSelectedSignupMethod() : latestState?.signupMethod,
       phoneVerificationEnabled: getFixedPhoneVerificationEnabled(),
-      plusModeEnabled: getFixedPlusModeEnabled(),
+      plusModeEnabled: getEffectivePlusModeEnabled(latestState),
       contributionMode: Boolean(latestState?.contributionMode),
     };
     return registry.validateAutoRunStart({
@@ -16207,19 +16374,20 @@ inputPlusModeEnabled?.addEventListener('change', () => {
   const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
     ? resolveStepDefinitionCapabilityState({
       ...(latestState || {}),
-      plusModeEnabled: getFixedPlusModeEnabled(),
+      plusModeEnabled: getEffectivePlusModeEnabled(latestState),
       signupMethod: getSelectedSignupMethod(),
     }, {
       signupMethod: getSelectedSignupMethod(),
     })
     : {
-      plusModeEnabled: getFixedPlusModeEnabled(),
+      plusModeEnabled: getEffectivePlusModeEnabled(latestState),
       signupMethod: getSelectedSignupMethod(),
     };
   syncStepDefinitionsForMode(stepDefinitionState.plusModeEnabled, getSelectedPlusPaymentMethod(), {
     render: true,
     signupMethod: stepDefinitionState.signupMethod,
     plusAccountAccessStrategy: stepDefinitionState.plusAccountAccessStrategy,
+    registerExtTaskMode: stepDefinitionState.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState),
   });
   validateHostedCheckoutContactConfig();
   markSettingsDirty(true);
@@ -16245,19 +16413,20 @@ selectPlusPaymentMethod?.addEventListener('change', () => {
   const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
     ? resolveStepDefinitionCapabilityState({
       ...(latestState || {}),
-      plusModeEnabled: getFixedPlusModeEnabled(),
+      plusModeEnabled: getEffectivePlusModeEnabled(latestState),
       signupMethod: getSelectedSignupMethod(),
     }, {
       signupMethod: getSelectedSignupMethod(),
     })
     : {
-      plusModeEnabled: getFixedPlusModeEnabled(),
+      plusModeEnabled: getEffectivePlusModeEnabled(latestState),
       signupMethod: getSelectedSignupMethod(),
     };
   syncStepDefinitionsForMode(stepDefinitionState.plusModeEnabled, selectPlusPaymentMethod.value, {
     render: true,
     signupMethod: stepDefinitionState.signupMethod,
     plusAccountAccessStrategy: stepDefinitionState.plusAccountAccessStrategy,
+    registerExtTaskMode: stepDefinitionState.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState),
   });
   validateHostedCheckoutContactConfig();
   markSettingsDirty(true);
@@ -16324,13 +16493,13 @@ selectPlusPaymentMethod?.addEventListener('change', () => {
   const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
     ? resolveStepDefinitionCapabilityState({
       ...(latestState || {}),
-      plusModeEnabled: getFixedPlusModeEnabled(),
+      plusModeEnabled: getEffectivePlusModeEnabled(latestState),
       signupMethod: getSelectedSignupMethod(),
     }, {
       signupMethod: getSelectedSignupMethod(),
     })
     : {
-      plusModeEnabled: getFixedPlusModeEnabled(),
+      plusModeEnabled: getEffectivePlusModeEnabled(latestState),
       signupMethod: getSelectedSignupMethod(),
     };
   syncStepDefinitionsForMode(stepDefinitionState.plusModeEnabled, {
@@ -16338,6 +16507,7 @@ selectPlusPaymentMethod?.addEventListener('change', () => {
     plusPaymentMethod: selectPlusPaymentMethod.value,
     signupMethod: stepDefinitionState.signupMethod,
     plusAccountAccessStrategy: stepDefinitionState.plusAccountAccessStrategy,
+    registerExtTaskMode: stepDefinitionState.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState),
   });
   validateHostedCheckoutContactConfig();
   markSettingsDirty(true);
@@ -16407,7 +16577,11 @@ selectMailProvider.addEventListener('change', async () => {
     queueLuckmailPurchaseRefresh();
   }
   if (nextProvider === REGISTER_MANAGER_MAIL_PROVIDER) {
-    refreshRegisterManagerAccountCandidates({ silent: true }).catch(() => { });
+    if (getSelectedRegisterExtTaskMode() === REGISTER_EXT_TASK_MODE_PAY_SEEDED) {
+      refreshPlusCheckoutAccountCandidates({ silent: true }).catch(() => { });
+    } else {
+      maybeQueueRegisterExtCandidateRefresh();
+    }
   }
   markSettingsDirty(true);
   saveSettings({ silent: true }).catch(() => { });
@@ -16415,6 +16589,47 @@ selectMailProvider.addEventListener('change', async () => {
 
 btnRefreshRegisterManagerAccounts?.addEventListener('click', async () => {
   await refreshRegisterManagerAccountCandidates();
+});
+
+btnRefreshPlusCheckoutAccounts?.addEventListener('click', async () => {
+  await refreshPlusCheckoutAccountCandidates();
+});
+
+registerExtTaskModeInputs.forEach((input) => {
+  input.addEventListener('change', async () => {
+    const mode = getSelectedRegisterExtTaskMode(latestState);
+    syncLatestState({
+      registerExtTaskMode: mode,
+      plusModeEnabled: getEffectivePlusModeEnabled({ ...(latestState || {}), registerExtTaskMode: mode }),
+      registerExtRunId: '',
+      registerExtAccountId: null,
+      registerExtCompletedAt: 0,
+      registerExtCompletionStatus: '',
+      plusCheckoutRunId: '',
+      plusCheckoutAccountId: null,
+      plusCheckoutUuid: '',
+      plusCheckoutStatus: '',
+      plusCheckoutPaymentStatus: '',
+    });
+    updateRegisterExtTaskModeUI();
+    const stepDefinitionState = resolveStepDefinitionCapabilityState(latestState, {
+      state: { registerExtTaskMode: mode },
+    });
+    syncStepDefinitionsForMode(stepDefinitionState.plusModeEnabled, {
+      registerExtTaskMode: mode,
+      plusPaymentMethod: getSelectedPlusPaymentMethod(),
+      plusAccountAccessStrategy: latestState?.plusAccountAccessStrategy,
+      signupMethod: stepDefinitionState.signupMethod,
+      render: true,
+    });
+    markSettingsDirty(true);
+    await saveSettings({ silent: true }).catch(() => { });
+    if (mode === REGISTER_EXT_TASK_MODE_PAY_SEEDED) {
+      await refreshPlusCheckoutAccountCandidates({ silent: true }).catch(() => { });
+    } else {
+      maybeQueueRegisterExtCandidateRefresh();
+    }
+  });
 });
 
 async function handleRegisterManagerGroupNameChange() {
@@ -16433,12 +16648,19 @@ async function handleRegisterManagerGroupNameChange() {
     registerManagerGroupName: nextGroupName,
     registerExtSelectedAccountId: null,
     registerExtSelectedEmail: '',
+    plusCheckoutSelectedAccountId: null,
+    plusCheckoutSelectedEmail: '',
   });
   setRegisterManagerAccountOptions([], null);
+  setPlusCheckoutAccountOptions([], null);
   markSettingsDirty(true);
   await saveSettings({ silent: true }).catch(() => { });
   if (isRegisterManagerProvider()) {
-    await refreshRegisterManagerAccountCandidates({ silent: true }).catch(() => { });
+    if (getSelectedRegisterExtTaskMode() === REGISTER_EXT_TASK_MODE_PAY_SEEDED) {
+      await refreshPlusCheckoutAccountCandidates({ silent: true }).catch(() => { });
+    } else {
+      maybeQueueRegisterExtCandidateRefresh();
+    }
   }
 }
 
@@ -16455,6 +16677,11 @@ inputRegisterManagerGroupName?.addEventListener('keydown', (event) => {
 });
 
 selectRegisterManagerAccount?.addEventListener('change', () => {
+  markSettingsDirty(true);
+  saveSettings({ silent: true }).catch(() => { });
+});
+
+selectPlusCheckoutAccount?.addEventListener('change', () => {
   markSettingsDirty(true);
   saveSettings({ silent: true }).catch(() => { });
 });
@@ -17605,20 +17832,22 @@ inputPhoneSignupReloginAfterBindEmail?.addEventListener('change', () => {
   const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
     ? resolveStepDefinitionCapabilityState({
       ...(latestState || {}),
-      plusModeEnabled: getFixedPlusModeEnabled(),
+      plusModeEnabled: getEffectivePlusModeEnabled(latestState),
       signupMethod: getSelectedSignupMethod(),
+      registerExtTaskMode: getSelectedRegisterExtTaskMode(latestState),
       phoneSignupReloginAfterBindEmailEnabled: Boolean(inputPhoneSignupReloginAfterBindEmail.checked),
     }, {
       signupMethod: getSelectedSignupMethod(),
     })
     : {
-      plusModeEnabled: getFixedPlusModeEnabled(),
+      plusModeEnabled: getEffectivePlusModeEnabled(latestState),
       signupMethod: getSelectedSignupMethod(),
     };
   syncStepDefinitionsForMode(stepDefinitionState.plusModeEnabled, {
     plusPaymentMethod: getSelectedPlusPaymentMethod(latestState),
     plusAccountAccessStrategy: stepDefinitionState.plusAccountAccessStrategy,
     signupMethod: stepDefinitionState.signupMethod,
+    registerExtTaskMode: stepDefinitionState.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState),
     phoneSignupReloginAfterBindEmailEnabled: Boolean(inputPhoneSignupReloginAfterBindEmail.checked),
   });
   updatePhoneVerificationSettingsUI();
@@ -19016,7 +19245,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             signupMethod: latestState?.signupMethod,
           })
           : {
-            plusModeEnabled: getFixedPlusModeEnabled(),
+            plusModeEnabled: getEffectivePlusModeEnabled(latestState),
             signupMethod: normalizeSignupMethod(latestState?.signupMethod || DEFAULT_SIGNUP_METHOD),
           };
         syncStepDefinitionsForMode(
