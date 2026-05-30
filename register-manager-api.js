@@ -58,6 +58,13 @@
       claimAccount: (body = {}) => request('/accounts/claim', { method: 'POST', body }),
       getRunCode: (runId, body = {}) => request(`/runs/${encodeURIComponent(String(runId || ''))}/code`, { method: 'POST', body }),
       completeRun: (runId, body = {}) => request(`/runs/${encodeURIComponent(String(runId || ''))}/complete`, { method: 'POST', body }),
+      submitRunSeed: (runId, body = {}) => request(`/runs/${encodeURIComponent(String(runId || ''))}/seed`, { method: 'POST', body }),
+      createRunCheckout: (runId, body = {}) => request(`/runs/${encodeURIComponent(String(runId || ''))}/checkout-runs`, { method: 'POST', body }),
+      writebackRunCheckoutStatus: (runId, checkoutUuid, body = {}) => request(`/runs/${encodeURIComponent(String(runId || ''))}/checkout-runs/${encodeURIComponent(String(checkoutUuid || ''))}/status`, { method: 'POST', body }),
+      listPlusCheckoutCandidates: (query = {}) => request('/plus-checkout/candidates', { query }),
+      claimPlusCheckoutAccount: (body = {}) => request('/plus-checkout/claim', { method: 'POST', body }),
+      createPlusCheckoutRun: (runId, body = {}) => request(`/plus-checkout/runs/${encodeURIComponent(String(runId || ''))}/checkout-runs`, { method: 'POST', body }),
+      writebackPlusCheckoutStatus: (runId, checkoutUuid, body = {}) => request(`/plus-checkout/runs/${encodeURIComponent(String(runId || ''))}/checkout-runs/${encodeURIComponent(String(checkoutUuid || ''))}/status`, { method: 'POST', body }),
     };
   }
 

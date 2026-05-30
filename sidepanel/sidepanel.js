@@ -655,6 +655,12 @@ const PHONE_SIGNUP_REUSE_LOCK_TITLE = '手机号注册流程不使用号码复�
 const SMSBOWER_REUSE_LOCK_TITLE = 'SMSBower 当前不使用普通号码复用';
 const PROVIDER_REUSE_LOCK_TITLE = '当前接码服务商不支持号码复用';
 const PROVIDER_FREE_REUSE_LOCK_TITLE = '当前接码服务商不支持白嫖复用';
+function getFixedPlusModeEnabled() {
+  return typeof FIXED_PLUS_MODE_ENABLED === 'boolean' ? FIXED_PLUS_MODE_ENABLED : true;
+}
+function getCustomPasswordInputValue(state = latestState) {
+  return inputPassword ? inputPassword.value : String(state?.customPassword || '');
+}
 let latestState = null;
 let localPlusCheckoutMode = DEFAULT_PLUS_CHECKOUT_MODE;
 let localPlusCheckoutProfiles = {
@@ -2167,7 +2173,7 @@ async function openPlusManualConfirmationDialog(options = {}) {
       { id: 'confirm', label: '我已完成订阅', variant: 'btn-primary' },
     ],
     alert: method === 'gopay'
-      ? { text: '确认后流程会直接继续到 Plus 模式第 10 步 OAuth 登录。', tone: 'info' }
+      ? { text: '确认后流程会直接继续到 Plus Checkout 第 10 步 OAuth 登录。', tone: 'info' }
       : null,
   });
 }
@@ -2263,16 +2269,7 @@ function setNewUserGuidePromptDismissed(dismissed) {
 }
 
 function shouldPromptNewUserGuide() {
-  if (isNewUserGuidePromptDismissed()) {
-    return false;
-  }
-  if (!btnContributionMode || btnContributionMode.disabled) {
-    return false;
-  }
-  if (latestState?.contributionMode) {
-    return false;
-  }
-  return true;
+  return false;
 }
 
 function getContributionPortalUrl() {
@@ -2282,13 +2279,13 @@ function getContributionPortalUrl() {
 function openNewUserGuidePrompt() {
   return openActionModal({
     title: '新手引导',
-    message: '如果你是第一次使用，可以先阅读仓库里的使用说明。点击“查看说明”会打开项目说明页。',
+    message: '本扩展已接入 RegisterExt API，可直接从候选邮箱开始注册与 Plus Checkout。',
     alert: {
       text: '本提示仅出现一次。',
     },
     actions: [
       { id: null, label: '取消', variant: 'btn-ghost' },
-      { id: 'confirm', label: '查看说明', variant: 'btn-primary' },
+      { id: 'confirm', label: '知道了', variant: 'btn-primary' },
     ],
   });
 }
@@ -2383,7 +2380,7 @@ async function openAutoSkipFailuresConfirmModal() {
 async function openAutoRunFallbackRiskConfirmModal(totalRuns) {
   const result = await openConfirmModalWithOption({
     title: '自动运行风险提醒',
-    message: `当前轮数可能不适合单节点情况，可选择对应代理工具节点轮询功能（若没有配置，请使用说明按钮，根据README中使用教程进行配置），避免连续使用一个节点注册，导致出现手机号验证。`,
+    message: `当前轮数可能不适合单节点情况，可选择对应代理工具节点轮询功能，避免连续使用一个节点注册，导致出现手机号验证。`,
     confirmLabel: '继续',
   });
 
@@ -2554,6 +2551,7 @@ function syncLatestState(nextState) {
   latestState = normalizePlusCheckoutStateForUi({
     ...(latestState || {}),
     ...(nextState || {}),
+    plusModeEnabled: getFixedPlusModeEnabled(),
     nodeStatuses: mergedNodeStatuses,
   }, {
     legacyOverrideSource: nextState || {},
@@ -4772,9 +4770,7 @@ function collectSettingsPayload() {
   const rawPlusAccountAccessStrategy = normalizePlusAccountAccessStrategy(
     selectedExportSettings.plusAccountAccessStrategy
   );
-  const rawPlusModeEnabled = typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-    ? Boolean(inputPlusModeEnabled.checked)
-    : Boolean(latestState?.plusModeEnabled);
+  const rawPlusModeEnabled = getFixedPlusModeEnabled();
   const rawPhoneVerificationEnabled = Boolean(inputPhoneVerificationEnabled?.checked);
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
@@ -4811,9 +4807,7 @@ function collectSettingsPayload() {
         : null;
     })();
   const effectivePanelMode = capabilityState?.effectivePanelMode || capabilityState?.panelMode || rawPanelMode;
-  const effectivePlusModeEnabled = capabilityState
-    ? Boolean(capabilityState.runtimeLocks?.plusModeEnabled)
-    : rawPlusModeEnabled;
+  const effectivePlusModeEnabled = getFixedPlusModeEnabled();
   const effectivePhoneVerificationEnabled = capabilityState
     ? Boolean(capabilityState.runtimeLocks?.phoneVerificationEnabled)
     : rawPhoneVerificationEnabled;
@@ -4890,10 +4884,10 @@ function collectSettingsPayload() {
   const cloudflareTempEmailReceiveMailboxNormalizer = typeof normalizeCloudflareTempEmailReceiveMailboxValue === 'function'
     ? normalizeCloudflareTempEmailReceiveMailboxValue
     : ((value) => String(value || '').trim());
-  const fixedPlusModeEnabled = typeof FIXED_PLUS_MODE_ENABLED === 'boolean'
-    ? FIXED_PLUS_MODE_ENABLED
-    : true;
-  const selectedPlusCheckoutMode = getActivePlusCheckoutModeFromState(latestState);
+  const fixedPlusModeEnabled = getFixedPlusModeEnabled();
+  const selectedPlusCheckoutMode = getSelectedPlusCheckoutMode(latestState);
+  localPlusCheckoutMode = selectedPlusCheckoutMode;
+  syncLatestState({ plusCheckoutMode: selectedPlusCheckoutMode });
   const currentPlusCheckoutProfiles = getLocalPlusCheckoutProfilesDraft(latestState);
   const nextPlusCheckoutProfiles = {
     ...currentPlusCheckoutProfiles,
@@ -5010,7 +5004,7 @@ function collectSettingsPayload() {
         : (latestState?.gopayHelperLocalSmsHelperUrl || '')
     ),
     ...(contributionModeEnabled ? {} : {
-      customPassword: inputPassword.value,
+      customPassword: getCustomPasswordInputValue(latestState),
     }),
     mailProvider: supportedMailProviderNormalizer(selectMailProvider?.value || latestState?.mailProvider),
     registerManagerGroupName: String(inputRegisterManagerGroupName?.value || '').trim(),
@@ -10055,6 +10049,7 @@ function resolveCurrentSidepanelCapabilities(options = {}) {
   const state = {
     ...(latestState || {}),
     ...(options?.state || {}),
+    plusModeEnabled: getFixedPlusModeEnabled(),
   };
   return registry.resolveSidepanelCapabilities({
     activeFlowId: options?.activeFlowId ?? state?.activeFlowId,
@@ -10069,6 +10064,7 @@ function resolveStepDefinitionCapabilityState(state = latestState, options = {})
   const nextState = {
     ...(state || {}),
     ...(options?.state || {}),
+    plusModeEnabled: getFixedPlusModeEnabled(),
   };
   const capabilityState = resolveCurrentSidepanelCapabilities({
     activeFlowId: options?.activeFlowId ?? nextState?.activeFlowId,
@@ -10079,9 +10075,7 @@ function resolveStepDefinitionCapabilityState(state = latestState, options = {})
   });
   return {
     capabilityState,
-    plusModeEnabled: capabilityState
-      ? Boolean(capabilityState.runtimeLocks?.plusModeEnabled)
-      : Boolean(nextState?.plusModeEnabled),
+    plusModeEnabled: getFixedPlusModeEnabled(),
     signupMethod: capabilityState?.effectiveSignupMethod
       || normalizeSignupMethod((options?.signupMethod ?? nextState?.signupMethod) || DEFAULT_SIGNUP_METHOD),
     plusAccountAccessStrategy: capabilityState?.effectivePlusAccountAccessStrategy
@@ -10124,9 +10118,7 @@ function setSignupMethod(method) {
 
 function canSelectPhoneSignupMethod() {
   const phoneEnabled = Boolean(inputPhoneVerificationEnabled?.checked);
-  const plusModeEnabled = typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-    ? Boolean(inputPlusModeEnabled.checked)
-    : Boolean(latestState?.plusModeEnabled);
+  const plusModeEnabled = getFixedPlusModeEnabled();
   const contributionModeEnabled = Boolean(latestState?.contributionMode);
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
@@ -10211,8 +10203,8 @@ function updateSignupMethodUI(options = {}) {
         button.title = '先手机号注册 Oauth 策略固定走手机号注册';
       } else if (phoneBindOauthStrategyActive) {
         button.title = '后手机号绑定 Oauth 策略固定走邮箱注册';
-      } else if (typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled?.checked) {
-        button.title = 'Plus 模式第一版暂不支持手机号注册';
+      } else if (getFixedPlusModeEnabled()) {
+        button.title = 'Plus Checkout 暂不支持手机号注册';
       } else if (latestState?.contributionMode) {
         button.title = '贡献模式第一版暂不支持手机号注册';
       } else if (locked) {
@@ -10229,17 +10221,13 @@ function updateSignupMethodUI(options = {}) {
   const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
     ? resolveStepDefinitionCapabilityState({
       ...(latestState || {}),
-      plusModeEnabled: typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-        ? Boolean(inputPlusModeEnabled.checked)
-        : Boolean(latestState?.plusModeEnabled),
+      plusModeEnabled: getFixedPlusModeEnabled(),
       signupMethod: selectedMethod,
     }, {
       signupMethod: selectedMethod,
     })
     : {
-      plusModeEnabled: typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-        ? Boolean(inputPlusModeEnabled.checked)
-        : Boolean(latestState?.plusModeEnabled),
+      plusModeEnabled: getFixedPlusModeEnabled(),
       signupMethod: selectedMethod,
     };
   syncStepDefinitionsForMode(stepDefinitionState.plusModeEnabled, {
@@ -10257,9 +10245,7 @@ function updateSignupMethodUI(options = {}) {
 
 function updatePhoneVerificationSettingsUI() {
   const rawEnabled = Boolean(inputPhoneVerificationEnabled?.checked);
-  const rawPlusModeEnabled = typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-    ? Boolean(inputPlusModeEnabled.checked)
-    : Boolean(latestState?.plusModeEnabled);
+  const rawPlusModeEnabled = getFixedPlusModeEnabled();
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
       panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode,
@@ -10566,9 +10552,7 @@ function updatePlusModeUI() {
   const gopayValue = typeof PLUS_PAYMENT_METHOD_GOPAY !== 'undefined' ? PLUS_PAYMENT_METHOD_GOPAY : 'gopay';
   const gpcValue = typeof PLUS_PAYMENT_METHOD_GPC_HELPER !== 'undefined' ? PLUS_PAYMENT_METHOD_GPC_HELPER : 'gpc-helper';
   const defaultMethod = typeof DEFAULT_PLUS_PAYMENT_METHOD !== 'undefined' ? DEFAULT_PLUS_PAYMENT_METHOD : paypalValue;
-  const rawEnabled = typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-    ? Boolean(inputPlusModeEnabled.checked)
-    : false;
+  const rawEnabled = getFixedPlusModeEnabled();
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
       panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode,
@@ -10960,9 +10944,7 @@ async function persistSignupPhoneInputForAction() {
 
 function isGpcHelperCheckoutSelected() {
   const gpcValue = typeof PLUS_PAYMENT_METHOD_GPC_HELPER !== 'undefined' ? PLUS_PAYMENT_METHOD_GPC_HELPER : 'gpc-helper';
-  const plusEnabled = typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-    ? Boolean(inputPlusModeEnabled.checked)
-    : Boolean(latestState?.plusModeEnabled);
+  const plusEnabled = getFixedPlusModeEnabled();
   return plusEnabled && getSelectedPlusPaymentMethod() === gpcValue;
 }
 
@@ -11106,7 +11088,7 @@ async function openPlusManualConfirmationDialog(options = {}) {
       { id: 'confirm', label: '我已完成订阅', variant: 'btn-primary' },
     ],
     alert: method === gopayValue
-      ? { text: '确认后流程会直接继续到 Plus 模式第 10 步 OAuth 登录。', tone: 'info' }
+      ? { text: '确认后流程会直接继续到 Plus Checkout 第 10 步 OAuth 登录。', tone: 'info' }
       : null,
   });
 }
@@ -12829,6 +12811,9 @@ async function refreshContributionContentHint() {
 }
 
 function syncPasswordField(state) {
+  if (!inputPassword) {
+    return;
+  }
   inputPassword.value = state?.contributionMode ? '' : (state.customPassword || '');
 }
 
@@ -14185,9 +14170,7 @@ function updatePanelModeUI() {
     rawExportTarget,
     rawStrategyUiValue
   );
-  const rawPlusModeEnabled = typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-    ? Boolean(inputPlusModeEnabled.checked)
-    : Boolean(latestState?.plusModeEnabled);
+  const rawPlusModeEnabled = getFixedPlusModeEnabled();
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
       panelMode: rawPanelMode,
@@ -15220,9 +15203,7 @@ function validateHostedCheckoutContactConfig(options = {}) {
   const paymentMethod = typeof getSelectedPlusPaymentMethod === 'function'
     ? getSelectedPlusPaymentMethod(latestState)
     : 'paypal';
-  const plusModeEnabled = typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-    ? Boolean(inputPlusModeEnabled.checked)
-    : Boolean(latestState?.plusModeEnabled);
+  const plusModeEnabled = getFixedPlusModeEnabled();
   const poolText = normalizeHostedCheckoutSmsPoolTextValue(inputHostedCheckoutSmsPool?.value || latestState?.hostedCheckoutSmsPoolText || '');
   const required = plusModeEnabled && paymentMethod === 'paypal' && !poolText;
   const valid = !required;
@@ -15442,6 +15423,9 @@ async function importSettingsFromFile(file) {
 }
 
 function syncPasswordToggleLabel() {
+  if (!btnTogglePassword || !inputPassword) {
+    return;
+  }
   syncToggleButtonLabel(btnTogglePassword, inputPassword, {
     show: '显示密码',
     hide: '隐藏密码',
@@ -15582,13 +15566,14 @@ stepsList?.addEventListener('click', async (event) => {
       return;
     }
     if (step === 3) {
-      if (inputPassword.value !== (latestState?.customPassword || '')) {
+      const nextCustomPassword = getCustomPasswordInputValue(latestState);
+      if (nextCustomPassword !== (latestState?.customPassword || '')) {
         await chrome.runtime.sendMessage({
           type: 'SAVE_SETTING',
           source: 'sidepanel',
-          payload: { customPassword: inputPassword.value },
+          payload: { customPassword: nextCustomPassword },
         });
-        syncLatestState({ customPassword: inputPassword.value });
+        syncLatestState({ customPassword: nextCustomPassword });
       }
       if (shouldExecuteStep3WithSignupPhoneIdentity(latestState)) {
         const response = await sendSidepanelMessage({ type: 'EXECUTE_NODE', source: 'sidepanel', payload: { nodeId } });
@@ -15650,7 +15635,10 @@ btnFetchEmail.addEventListener('click', async () => {
   await fetchGeneratedEmail().catch(() => { });
 });
 
-btnTogglePassword.addEventListener('click', () => {
+btnTogglePassword?.addEventListener('click', () => {
+  if (!inputPassword) {
+    return;
+  }
   inputPassword.type = inputPassword.type === 'password' ? 'text' : 'password';
   syncPasswordToggleLabel();
 });
@@ -15871,9 +15859,7 @@ async function startAutoRunFromCurrentSettings() {
       phoneVerificationEnabled: typeof inputPhoneVerificationEnabled !== 'undefined' && inputPhoneVerificationEnabled
         ? Boolean(inputPhoneVerificationEnabled.checked)
         : Boolean(latestState?.phoneVerificationEnabled),
-      plusModeEnabled: typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-        ? Boolean(inputPlusModeEnabled.checked)
-        : Boolean(latestState?.plusModeEnabled),
+      plusModeEnabled: getFixedPlusModeEnabled(),
       contributionMode: Boolean(latestState?.contributionMode),
     };
     return registry.validateAutoRunStart({
@@ -16201,12 +16187,12 @@ selectLuckmailEmailType?.addEventListener('change', () => {
   saveSettings({ silent: true }).catch(() => { });
 });
 
-inputPassword.addEventListener('input', () => {
+inputPassword?.addEventListener('input', () => {
   markSettingsDirty(true);
   updateButtonStates();
   scheduleSettingsAutoSave();
 });
-inputPassword.addEventListener('blur', () => {
+inputPassword?.addEventListener('blur', () => {
   saveSettings({ silent: true }).catch(() => { });
 });
 
@@ -16216,13 +16202,13 @@ inputPlusModeEnabled?.addEventListener('change', () => {
   const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
     ? resolveStepDefinitionCapabilityState({
       ...(latestState || {}),
-      plusModeEnabled: Boolean(inputPlusModeEnabled.checked),
+      plusModeEnabled: getFixedPlusModeEnabled(),
       signupMethod: getSelectedSignupMethod(),
     }, {
       signupMethod: getSelectedSignupMethod(),
     })
     : {
-      plusModeEnabled: Boolean(inputPlusModeEnabled.checked),
+      plusModeEnabled: getFixedPlusModeEnabled(),
       signupMethod: getSelectedSignupMethod(),
     };
   syncStepDefinitionsForMode(stepDefinitionState.plusModeEnabled, getSelectedPlusPaymentMethod(), {
@@ -16254,13 +16240,13 @@ selectPlusPaymentMethod?.addEventListener('change', () => {
   const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
     ? resolveStepDefinitionCapabilityState({
       ...(latestState || {}),
-      plusModeEnabled: Boolean(inputPlusModeEnabled?.checked),
+      plusModeEnabled: getFixedPlusModeEnabled(),
       signupMethod: getSelectedSignupMethod(),
     }, {
       signupMethod: getSelectedSignupMethod(),
     })
     : {
-      plusModeEnabled: Boolean(inputPlusModeEnabled?.checked),
+      plusModeEnabled: getFixedPlusModeEnabled(),
       signupMethod: getSelectedSignupMethod(),
     };
   syncStepDefinitionsForMode(stepDefinitionState.plusModeEnabled, selectPlusPaymentMethod.value, {
@@ -16333,13 +16319,13 @@ selectPlusPaymentMethod?.addEventListener('change', () => {
   const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
     ? resolveStepDefinitionCapabilityState({
       ...(latestState || {}),
-      plusModeEnabled: Boolean(inputPlusModeEnabled?.checked),
+      plusModeEnabled: getFixedPlusModeEnabled(),
       signupMethod: getSelectedSignupMethod(),
     }, {
       signupMethod: getSelectedSignupMethod(),
     })
     : {
-      plusModeEnabled: Boolean(inputPlusModeEnabled?.checked),
+      plusModeEnabled: getFixedPlusModeEnabled(),
       signupMethod: getSelectedSignupMethod(),
     };
   syncStepDefinitionsForMode(stepDefinitionState.plusModeEnabled, {
@@ -17626,18 +17612,14 @@ inputPhoneSignupReloginAfterBindEmail?.addEventListener('change', () => {
   const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
     ? resolveStepDefinitionCapabilityState({
       ...(latestState || {}),
-      plusModeEnabled: typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-        ? Boolean(inputPlusModeEnabled.checked)
-        : Boolean(latestState?.plusModeEnabled),
+      plusModeEnabled: getFixedPlusModeEnabled(),
       signupMethod: getSelectedSignupMethod(),
       phoneSignupReloginAfterBindEmailEnabled: Boolean(inputPhoneSignupReloginAfterBindEmail.checked),
     }, {
       signupMethod: getSelectedSignupMethod(),
     })
     : {
-      plusModeEnabled: typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-        ? Boolean(inputPlusModeEnabled.checked)
-        : Boolean(latestState?.plusModeEnabled),
+      plusModeEnabled: getFixedPlusModeEnabled(),
       signupMethod: getSelectedSignupMethod(),
     };
   syncStepDefinitionsForMode(stepDefinitionState.plusModeEnabled, {
@@ -17811,9 +17793,7 @@ function validatePlusCheckoutCloudConversionConfig(options = {}) {
 
 function updatePlusCheckoutConversionModeUi() {
   const cloudEnabled = isPlusCheckoutCloudConversionEnabled();
-  const plusModeEnabled = typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
-    ? Boolean(inputPlusModeEnabled.checked)
-    : Boolean(latestState?.plusModeEnabled);
+  const plusModeEnabled = getFixedPlusModeEnabled();
   const selectedMethod = normalizePlusPaymentMethod(
     typeof selectPlusPaymentMethod !== 'undefined' && selectPlusPaymentMethod
       ? selectPlusPaymentMethod.value
@@ -18995,7 +18975,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         updateMailProviderUI();
       }
       if (message.payload.plusModeEnabled !== undefined && inputPlusModeEnabled) {
-        inputPlusModeEnabled.checked = Boolean(message.payload.plusModeEnabled);
+        inputPlusModeEnabled.checked = getFixedPlusModeEnabled();
       }
       if (message.payload.plusPaymentMethod !== undefined && selectPlusPaymentMethod) {
         selectPlusPaymentMethod.value = normalizePlusPaymentMethod(message.payload.plusPaymentMethod);
@@ -19043,7 +19023,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             signupMethod: latestState?.signupMethod,
           })
           : {
-            plusModeEnabled: Boolean(latestState?.plusModeEnabled),
+            plusModeEnabled: getFixedPlusModeEnabled(),
             signupMethod: normalizeSignupMethod(latestState?.signupMethod || DEFAULT_SIGNUP_METHOD),
           };
         syncStepDefinitionsForMode(

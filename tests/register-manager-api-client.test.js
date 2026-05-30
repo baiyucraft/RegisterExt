@@ -49,6 +49,37 @@ test('RegisterExt API client calls register-manager endpoints only', async () =>
   assert.equal(candidatesUrl.searchParams.get('groupName'), 'seed-a');
 });
 
+test('RegisterExt API client exposes seed and plus checkout endpoints under extension namespace', async () => {
+  const calls = [];
+  const client = createRegisterManagerApiClient({
+    fetchImpl: async (url, options = {}) => {
+      calls.push({ url, options });
+      return jsonResponse({ ok: true, runId: 'run-1', items: [], checkout: {} });
+    },
+  });
+
+  await client.submitRunSeed('run-1', { accessToken: 'access-secret' });
+  await client.listPlusCheckoutCandidates({ page: 1, pageSize: 5, groupName: 'wave-a' });
+  await client.claimPlusCheckoutAccount({ accountId: 7 });
+  await client.createRunCheckout('reg-run', { checkoutRegion: 'jp_pp' });
+  await client.writebackRunCheckoutStatus('reg-run', 'checkout-reg', { status: 'opened' });
+  await client.createPlusCheckoutRun('pay-run', { checkoutRegion: 'us_pp' });
+  await client.writebackPlusCheckoutStatus('pay-run', 'checkout-pay', { status: 'payment_succeeded', checkoutSessionId: 'session_123' });
+
+  assert.deepEqual(calls.map((call) => new URL(call.url).pathname), [
+    '/api/extension/RegisterExt/runs/run-1/seed',
+    '/api/extension/RegisterExt/plus-checkout/candidates',
+    '/api/extension/RegisterExt/plus-checkout/claim',
+    '/api/extension/RegisterExt/runs/reg-run/checkout-runs',
+    '/api/extension/RegisterExt/runs/reg-run/checkout-runs/checkout-reg/status',
+    '/api/extension/RegisterExt/plus-checkout/runs/pay-run/checkout-runs',
+    '/api/extension/RegisterExt/plus-checkout/runs/pay-run/checkout-runs/checkout-pay/status',
+  ]);
+  assert.equal(calls.every((call) => new URL(call.url).origin === 'http://192.168.31.199:1456'), true);
+  assert.equal(calls.some((call) => new URL(call.url).pathname.startsWith('/api/plus')), false);
+  assert.equal(calls.some((call) => Object.keys(call.options.headers || {}).some((key) => key.toLowerCase() === 'x-plus-checkout-writeback-token')), false);
+});
+
 test('RegisterExt API client ignores legacy local base URLs', async () => {
   for (const baseUrl of [
     '',

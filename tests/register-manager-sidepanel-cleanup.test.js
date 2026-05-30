@@ -42,6 +42,35 @@ test('sidepanel removes session JSON upload and export UI while keeping settings
   assert.doesNotMatch(html, /input-sub2api-|input-codex2api-|input-local-cpa-json-/);
 });
 
+test('sidepanel removes guide, password, and Plus mode toggle while keeping checkout region switch', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.html'), 'utf8');
+  const sidepanel = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
+
+  assert.doesNotMatch(html, /btn-contribution-mode/);
+  assert.doesNotMatch(html, />使用说明</);
+  assert.doesNotMatch(html, /账户密码/);
+  assert.doesNotMatch(html, /Plus 模式/);
+  assert.doesNotMatch(html, /已固定开启/);
+  assert.doesNotMatch(html, /id="input-password"/);
+  assert.doesNotMatch(html, /id="btn-toggle-password"/);
+  assert.doesNotMatch(html, /id="input-plus-mode-enabled"/);
+
+  assert.match(html, /<span class="data-label">Plus Checkout<\/span>/);
+  assert.match(html, /id="input-plus-checkout-mode-us"\s+value="us_pp"/);
+  assert.match(html, /id="input-plus-checkout-mode-jp"\s+value="jp_pp"/);
+  assert.match(html, /美区PP Plus Checkout/);
+  assert.match(html, /日区PP Plus Checkout/);
+
+  assert.match(sidepanel, /function getFixedPlusModeEnabled\(\)[\s\S]*?return typeof FIXED_PLUS_MODE_ENABLED === 'boolean' \? FIXED_PLUS_MODE_ENABLED : true;/);
+  assert.match(sidepanel, /const selectedPlusCheckoutMode = getSelectedPlusCheckoutMode\(latestState\);/);
+  assert.match(sidepanel, /syncLatestState\(\{ plusCheckoutMode: selectedPlusCheckoutMode \}\);/);
+  assert.match(sidepanel, /plusModeEnabled:\s*getFixedPlusModeEnabled\(\)/);
+  assert.doesNotMatch(sidepanel, /customPassword:\s*inputPassword\.value/);
+  assert.doesNotMatch(sidepanel, /inputPassword\.addEventListener/);
+  assert.doesNotMatch(sidepanel, /btnTogglePassword\.addEventListener/);
+  assert.doesNotMatch(sidepanel, /Boolean\(latestState\?\.plusModeEnabled\)/);
+});
+
 test('sidepanel keeps PayPal SMS pool expanded and removes single-code controls', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.html'), 'utf8');
   const sidepanel = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');

@@ -142,6 +142,7 @@
       waitForTabUrlMatchUntilStopped = null,
       throwIfStopped = () => {},
     } = deps;
+    const registerManagerApiClient = deps.registerManagerApiClient || null;
     let activeVisibleStep = 6;
 
     function addLog(message, level = 'info', options = {}) {
@@ -4703,6 +4704,50 @@ function FindProxyForURL(url, host) {
 
     async function executePlusCheckoutCreate(state = {}) {
       activeVisibleStep = getCheckoutCreateDisplayStep(state);
+      if (registerManagerApiClient && (state?.plusCheckoutRunId || state?.registerExtRunId)) {
+        const runId = String(state.plusCheckoutRunId || state.registerExtRunId || '').trim();
+        const createCheckout = state.plusCheckoutRunId
+          ? registerManagerApiClient.createPlusCheckoutRun
+          : registerManagerApiClient.createRunCheckout;
+        if (typeof createCheckout === 'function' && runId) {
+          await addLog('步骤 6：正在通过 RegisterExt API 创建 Plus Checkout...', 'info');
+          const response = await createCheckout(runId, {
+            checkoutRegion: state.plusCheckoutMode || 'us_pp',
+            plusCheckoutMode: state.plusCheckoutMode || 'us_pp',
+          });
+          const checkout = response?.checkout || {};
+          const checkoutUrl = String(checkout.preferredCheckoutUrl || checkout.checkoutUrl || checkout.hostedCheckoutUrl || '').trim();
+          if (!checkoutUrl) {
+            throw new Error('步骤 6：RegisterExt API 未返回可用的 Plus Checkout URL。');
+          }
+          const tab = typeof createAutomationTab === 'function'
+            ? await createAutomationTab({ url: checkoutUrl, active: true })
+            : await chrome.tabs.create({ url: checkoutUrl, active: true });
+          const tabId = Number(tab?.id) || null;
+          await setState({
+            plusCheckoutRunId: runId,
+            plusCheckoutAccountId: checkout.accountId || state.plusCheckoutAccountId || state.registerExtAccountId || null,
+            plusCheckoutUuid: checkout.checkoutUuid || '',
+            plusCheckoutSessionId: checkout.checkoutSessionId || '',
+            plusCheckoutSessionIdMasked: checkout.checkoutSessionIdMasked || '',
+            plusCheckoutStatus: checkout.status || 'created',
+            plusCheckoutPaymentStatus: checkout.paymentStatus || 'pending',
+            plusCheckoutTabId: tabId,
+            plusCheckoutUrl: checkoutUrl,
+            plusCheckoutCountry: checkout.country || 'US',
+            plusCheckoutCurrency: checkout.currency || 'USD',
+            plusCheckoutSource: 'register-manager-plus-checkout',
+          });
+          await completePlusCheckoutCreate({
+            plusCheckoutRunId: runId,
+            plusCheckoutUuid: checkout.checkoutUuid || '',
+            plusCheckoutCountry: checkout.country || 'US',
+            plusCheckoutCurrency: checkout.currency || 'USD',
+            plusCheckoutSource: 'register-manager-plus-checkout',
+          });
+          return;
+        }
+      }
       const paymentMethod = normalizePlusPaymentMethod(state?.plusPaymentMethod);
       if (paymentMethod === PLUS_PAYMENT_METHOD_PAYPAL) {
         const checkoutProfileState = resolveActivePlusCheckoutProfile(state, state);
