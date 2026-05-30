@@ -72,6 +72,29 @@ test('sidepanel removes guide, password, and Plus mode toggle while keeping chec
   assert.doesNotMatch(sidepanel, /Boolean\(latestState\?\.plusModeEnabled\)/);
 });
 
+test('sidepanel removes checkout link conversion controls', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.html'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.css'), 'utf8');
+  const sidepanel = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
+
+  assert.doesNotMatch(html, /支付转换代理/);
+  assert.doesNotMatch(html, /云端支付转换/);
+  assert.doesNotMatch(html, />测试代理</);
+  assert.doesNotMatch(html, /id="row-plus-checkout-conversion-proxy"/);
+  assert.doesNotMatch(html, /id="btn-plus-checkout-conversion-proxy-test"/);
+  assert.doesNotMatch(html, /id="input-plus-checkout-cloud-conversion-enabled"/);
+  assert.doesNotMatch(css, /plus-checkout-conversion-proxy-test/);
+
+  assert.doesNotMatch(sidepanel, /btnPlusCheckoutConversionProxyTest/);
+  assert.doesNotMatch(sidepanel, /inputPlusCheckoutCloudConversionEnabled/);
+  assert.doesNotMatch(sidepanel, /handlePlusCheckoutConversionProxyTest/);
+  assert.doesNotMatch(sidepanel, /validatePlusCheckoutCloudConversionConfig/);
+  assert.match(sidepanel, /plusCheckoutCloudConversionEnabled:\s*false/);
+  assert.match(sidepanel, /plusCheckoutCloudConversionApiUrl:\s*''/);
+  assert.match(sidepanel, /plusCheckoutCloudConversionApiKey:\s*''/);
+  assert.match(sidepanel, /plusCheckoutConversionProxyUrl:\s*''/);
+});
+
 test('sidepanel removes registration SMS settings while keeping PayPal checkout SMS pool', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.html'), 'utf8');
   const sidepanel = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
