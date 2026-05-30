@@ -658,6 +658,9 @@ const PROVIDER_FREE_REUSE_LOCK_TITLE = '当前接码服务商不支持白嫖复�
 function getFixedPlusModeEnabled() {
   return typeof FIXED_PLUS_MODE_ENABLED === 'boolean' ? FIXED_PLUS_MODE_ENABLED : true;
 }
+function getFixedPhoneVerificationEnabled() {
+  return false;
+}
 function getCustomPasswordInputValue(state = latestState) {
   return inputPassword ? inputPassword.value : String(state?.customPassword || '');
 }
@@ -2552,6 +2555,10 @@ function syncLatestState(nextState) {
     ...(latestState || {}),
     ...(nextState || {}),
     plusModeEnabled: getFixedPlusModeEnabled(),
+    phoneVerificationEnabled: getFixedPhoneVerificationEnabled(),
+    signupMethod: normalizeSignupMethod((nextState || latestState || {})?.signupMethod || DEFAULT_SIGNUP_METHOD) === SIGNUP_METHOD_PHONE
+      ? SIGNUP_METHOD_EMAIL
+      : normalizeSignupMethod((nextState || latestState || {})?.signupMethod || DEFAULT_SIGNUP_METHOD),
     nodeStatuses: mergedNodeStatuses,
   }, {
     legacyOverrideSource: nextState || {},
@@ -4771,7 +4778,7 @@ function collectSettingsPayload() {
     selectedExportSettings.plusAccountAccessStrategy
   );
   const rawPlusModeEnabled = getFixedPlusModeEnabled();
-  const rawPhoneVerificationEnabled = Boolean(inputPhoneVerificationEnabled?.checked);
+  const rawPhoneVerificationEnabled = getFixedPhoneVerificationEnabled();
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
       panelMode: rawPanelMode,
@@ -4808,9 +4815,7 @@ function collectSettingsPayload() {
     })();
   const effectivePanelMode = capabilityState?.effectivePanelMode || capabilityState?.panelMode || rawPanelMode;
   const effectivePlusModeEnabled = getFixedPlusModeEnabled();
-  const effectivePhoneVerificationEnabled = capabilityState
-    ? Boolean(capabilityState.runtimeLocks?.phoneVerificationEnabled)
-    : rawPhoneVerificationEnabled;
+  const effectivePhoneVerificationEnabled = getFixedPhoneVerificationEnabled();
   const effectiveSignupMethod = capabilityState?.effectiveSignupMethod || selectedSignupMethod;
   const effectivePlusAccountAccessStrategy = capabilityState?.effectivePlusAccountAccessStrategy
     || rawPlusAccountAccessStrategy;
@@ -10117,7 +10122,7 @@ function setSignupMethod(method) {
 }
 
 function canSelectPhoneSignupMethod() {
-  const phoneEnabled = Boolean(inputPhoneVerificationEnabled?.checked);
+  const phoneEnabled = getFixedPhoneVerificationEnabled();
   const plusModeEnabled = getFixedPlusModeEnabled();
   const contributionModeEnabled = Boolean(latestState?.contributionMode);
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
@@ -10166,7 +10171,7 @@ function updateSignupMethodUI(options = {}) {
     return;
   }
 
-  const showSignupMethod = Boolean(inputPhoneVerificationEnabled?.checked);
+  const showSignupMethod = getFixedPhoneVerificationEnabled();
   if (rowSignupMethod) {
     rowSignupMethod.style.display = showSignupMethod ? '' : 'none';
   }
@@ -10197,8 +10202,8 @@ function updateSignupMethodUI(options = {}) {
     button.disabled = disabled;
     button.setAttribute('aria-disabled', String(disabled));
     if (method === SIGNUP_METHOD_PHONE) {
-      if (!Boolean(inputPhoneVerificationEnabled?.checked)) {
-        button.title = '开启接码后可选择手机号注册';
+      if (!getFixedPhoneVerificationEnabled()) {
+        button.title = '手机号注册已交由 RegisterExt API 服务处理';
       } else if (smsOauthStrategyActive) {
         button.title = '先手机号注册 Oauth 策略固定走手机号注册';
       } else if (phoneBindOauthStrategyActive) {
@@ -10244,7 +10249,7 @@ function updateSignupMethodUI(options = {}) {
 }
 
 function updatePhoneVerificationSettingsUI() {
-  const rawEnabled = Boolean(inputPhoneVerificationEnabled?.checked);
+  const rawEnabled = getFixedPhoneVerificationEnabled();
   const rawPlusModeEnabled = getFixedPlusModeEnabled();
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
@@ -10743,7 +10748,7 @@ function setFreePhoneReuseControlsLocked(locked) {
   if (inputFreePhoneReuseAutoEnabled) {
     inputFreePhoneReuseAutoEnabled.disabled = locked
       || !Boolean(inputFreePhoneReuseEnabled?.checked)
-      || !Boolean(inputPhoneVerificationEnabled?.checked && phoneVerificationSectionExpanded);
+      || !Boolean(getFixedPhoneVerificationEnabled() && phoneVerificationSectionExpanded);
   }
 }
 
@@ -10763,6 +10768,9 @@ async function setRuntimeEmailState(email) {
 }
 
 function getRuntimeSignupPhoneValue(state = latestState) {
+  if (!getFixedPhoneVerificationEnabled()) {
+    return '';
+  }
   const identifierType = String(state?.accountIdentifierType || '').trim().toLowerCase();
   return String(
     state?.signupPhoneNumber
@@ -10772,6 +10780,9 @@ function getRuntimeSignupPhoneValue(state = latestState) {
 }
 
 function shouldExecuteStep3WithSignupPhoneIdentity(state = latestState) {
+  if (!getFixedPhoneVerificationEnabled()) {
+    return false;
+  }
   const identifierType = String(state?.accountIdentifierType || '').trim().toLowerCase();
   const resolvedMethod = normalizeSignupMethod(
     state?.resolvedSignupMethod
@@ -10808,9 +10819,7 @@ function syncSignupPhoneInputFromState(state = latestState) {
     }
   }
   if (typeof rowSignupPhone !== 'undefined' && rowSignupPhone) {
-    const phoneVerificationEnabled = typeof inputPhoneVerificationEnabled !== 'undefined' && inputPhoneVerificationEnabled
-      ? Boolean(inputPhoneVerificationEnabled.checked)
-      : Boolean(state?.phoneVerificationEnabled || latestState?.phoneVerificationEnabled);
+    const phoneVerificationEnabled = getFixedPhoneVerificationEnabled();
     const rawSignupMethod = state?.signupMethod || (
       typeof getSelectedSignupMethod === 'function'
         ? getSelectedSignupMethod()
@@ -12070,9 +12079,7 @@ function applySettingsState(state) {
     );
   }
   if (inputPhoneVerificationEnabled) {
-    inputPhoneVerificationEnabled.checked = state?.phoneVerificationEnabled !== undefined
-      ? Boolean(state.phoneVerificationEnabled)
-      : DEFAULT_PHONE_VERIFICATION_ENABLED;
+    inputPhoneVerificationEnabled.checked = getFixedPhoneVerificationEnabled();
   }
   if (typeof setSignupMethod === 'function') {
     setSignupMethod(state?.signupMethod || DEFAULT_SIGNUP_METHOD);
@@ -15856,9 +15863,7 @@ async function startAutoRunFromCurrentSettings() {
       ...(latestState || {}),
       panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode,
       signupMethod: typeof getSelectedSignupMethod === 'function' ? getSelectedSignupMethod() : latestState?.signupMethod,
-      phoneVerificationEnabled: typeof inputPhoneVerificationEnabled !== 'undefined' && inputPhoneVerificationEnabled
-        ? Boolean(inputPhoneVerificationEnabled.checked)
-        : Boolean(latestState?.phoneVerificationEnabled),
+      phoneVerificationEnabled: getFixedPhoneVerificationEnabled(),
       plusModeEnabled: getFixedPlusModeEnabled(),
       contributionMode: Boolean(latestState?.contributionMode),
     };
@@ -17576,21 +17581,9 @@ selectPhoneSmsProvider?.addEventListener('change', () => {
 });
 
 inputPhoneVerificationEnabled?.addEventListener('change', () => {
-  const strategyRequiresPhoneVerification = false;
-  if (!inputPhoneVerificationEnabled.checked && strategyRequiresPhoneVerification) {
-    inputPhoneVerificationEnabled.checked = true;
-    setPhoneVerificationSectionExpanded(true);
-    updatePhoneVerificationSettingsUI();
-    showToast('当前账号接入策略必须开启接码设置。', 'warn', 1800);
-    return;
-  }
-  if (inputPhoneVerificationEnabled.checked) {
-    setPhoneVerificationSectionExpanded(true);
-  } else {
-    setSignupMethod(SIGNUP_METHOD_EMAIL);
-    updatePhoneVerificationSettingsUI();
-    showToast('已切回邮箱注册', 'info', 1600);
-  }
+  inputPhoneVerificationEnabled.checked = getFixedPhoneVerificationEnabled();
+  setSignupMethod(SIGNUP_METHOD_EMAIL);
+  updatePhoneVerificationSettingsUI();
   markSettingsDirty(true);
   saveSettings({ silent: true }).catch(() => { });
 });
@@ -19483,10 +19476,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         updatePhoneVerificationSettingsUI();
       }
       if (message.payload.phoneVerificationEnabled !== undefined && inputPhoneVerificationEnabled) {
-        inputPhoneVerificationEnabled.checked = Boolean(message.payload.phoneVerificationEnabled);
+        inputPhoneVerificationEnabled.checked = getFixedPhoneVerificationEnabled();
       }
       if (message.payload.signupMethod !== undefined) {
-        setSignupMethod(message.payload.signupMethod);
+        setSignupMethod(normalizeSignupMethod(message.payload.signupMethod) === SIGNUP_METHOD_PHONE
+          ? SIGNUP_METHOD_EMAIL
+          : message.payload.signupMethod);
       }
       if (message.payload.phoneVerificationEnabled !== undefined || message.payload.signupMethod !== undefined) {
         updatePhoneVerificationSettingsUI();
