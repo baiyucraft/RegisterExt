@@ -95,6 +95,24 @@ test('sidepanel removes checkout link conversion controls', () => {
   assert.match(sidepanel, /plusCheckoutConversionProxyUrl:\s*''/);
 });
 
+test('sidepanel removes OAuth status display rows', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.html'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.css'), 'utf8');
+  const sidepanel = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
+
+  assert.doesNotMatch(html, /id="row-oauth-display"/);
+  assert.doesNotMatch(html, /id="display-oauth-url"/);
+  assert.doesNotMatch(html, /id="display-oauth-login-code"/);
+  assert.doesNotMatch(html, /id="display-localhost-url"/);
+  assert.doesNotMatch(html, /id="btn-save-settings"/);
+  assert.doesNotMatch(css, /#btn-save-settings/);
+
+  assert.match(sidepanel, /function setOauthUrlDisplay/);
+  assert.match(sidepanel, /function setLocalhostUrlDisplay/);
+  assert.match(sidepanel, /btnSaveSettings\?\.addEventListener/);
+  assert.doesNotMatch(sidepanel, /btnSaveSettings\.addEventListener/);
+});
+
 test('sidepanel removes registration SMS settings while keeping PayPal checkout SMS pool', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.html'), 'utf8');
   const sidepanel = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');

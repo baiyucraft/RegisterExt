@@ -1409,8 +1409,7 @@ header {
   color: var(--text-muted);
 }
 
-#btn-fetch-email,
-#btn-save-settings {
+#btn-fetch-email {
   padding-inline: 10px;
   flex-shrink: 0;
 }

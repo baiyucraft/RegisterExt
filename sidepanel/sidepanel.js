@@ -1987,6 +1987,24 @@ function setOauthLoginCodeDisplay(value = '') {
   displayOauthLoginCode.classList.toggle('has-value', Boolean(normalized));
 }
 
+function setOauthUrlDisplay(value = '') {
+  if (!displayOauthUrl) {
+    return;
+  }
+  const normalized = String(value || '').trim();
+  displayOauthUrl.textContent = normalized || '等待中...';
+  displayOauthUrl.classList.toggle('has-value', Boolean(normalized));
+}
+
+function setLocalhostUrlDisplay(value = '') {
+  if (!displayLocalhostUrl) {
+    return;
+  }
+  const normalized = String(value || '').trim();
+  displayLocalhostUrl.textContent = normalized || '等待中...';
+  displayLocalhostUrl.classList.toggle('has-value', Boolean(normalized));
+}
+
 function resetActionModalOption() {
   if (!modalOptionRow || !modalOptionInput || !modalOptionText) {
     return;
@@ -11318,6 +11336,10 @@ function markSettingsDirty(isDirty = true) {
 }
 
 function updateSaveButtonState() {
+  if (!btnSaveSettings) {
+    updateConfigMenuControls();
+    return;
+  }
   btnSaveSettings.disabled = settingsSaveInFlight || !settingsDirty;
   updateConfigMenuControls();
   btnSaveSettings.textContent = settingsSaveInFlight ? '保存中' : '保存';
@@ -12386,15 +12408,9 @@ async function restoreState() {
       refreshIcloudAliases({ silent: true }).catch(() => { });
     }
 
-    if (state.oauthUrl) {
-      displayOauthUrl.textContent = state.oauthUrl;
-      displayOauthUrl.classList.add('has-value');
-    }
+    setOauthUrlDisplay(state.oauthUrl || '');
     setOauthLoginCodeDisplay(state.lastLoginCode || '');
-    if (state.localhostUrl) {
-      displayLocalhostUrl.textContent = state.localhostUrl;
-      displayLocalhostUrl.classList.add('has-value');
-    }
+    setLocalhostUrlDisplay(state.localhostUrl || '');
     if (state.nodeStatuses) {
       for (const [nodeId, status] of Object.entries(state.nodeStatuses)) {
         updateNodeUI(nodeId, status);
@@ -15877,7 +15893,7 @@ hotmailServiceModeButtons.forEach((button) => {
   });
 });
 
-btnSaveSettings.addEventListener('click', async () => {
+btnSaveSettings?.addEventListener('click', async () => {
   if (!settingsDirty) {
     showToast('配置已是最新', 'info', 1400);
     return;
@@ -16191,11 +16207,9 @@ btnReset.addEventListener('click', async () => {
     autoRunCountdownTitle: '',
     autoRunCountdownNote: '',
   });
-  displayOauthUrl.textContent = '等待中...';
-  displayOauthUrl.classList.remove('has-value');
+  setOauthUrlDisplay('');
   setOauthLoginCodeDisplay('');
-  displayLocalhostUrl.textContent = '等待中...';
-  displayLocalhostUrl.classList.remove('has-value');
+  setLocalhostUrlDisplay('');
   inputEmail.value = '';
   if (typeof inputSignupPhone !== 'undefined' && inputSignupPhone) {
     inputSignupPhone.value = '';
@@ -18575,15 +18589,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         updateButtonStates();
         if (status === 'completed' || status === 'manual_completed' || status === 'skipped') {
           syncPasswordField(state);
-          if (state.oauthUrl) {
-            displayOauthUrl.textContent = state.oauthUrl;
-            displayOauthUrl.classList.add('has-value');
-          }
+          setOauthUrlDisplay(state.oauthUrl || '');
           setOauthLoginCodeDisplay(state.lastLoginCode || '');
-          if (state.localhostUrl) {
-            displayLocalhostUrl.textContent = state.localhostUrl;
-            displayLocalhostUrl.classList.add('has-value');
-          }
+          setLocalhostUrlDisplay(state.localhostUrl || '');
         }
       }
       ).catch(() => { });
@@ -18605,11 +18613,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         autoRunCountdownTitle: '',
         autoRunCountdownNote: '',
       });
-      displayOauthUrl.textContent = '等待中...';
-      displayOauthUrl.classList.remove('has-value');
+      setOauthUrlDisplay('');
       setOauthLoginCodeDisplay('');
-      displayLocalhostUrl.textContent = '等待中...';
-      displayLocalhostUrl.classList.remove('has-value');
+      setLocalhostUrlDisplay('');
       inputEmail.value = '';
       if (typeof inputSignupPhone !== 'undefined' && inputSignupPhone) {
         inputSignupPhone.value = '';
@@ -18841,15 +18847,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         updateIpProxyUI(latestState);
       }
       if (message.payload.oauthUrl !== undefined) {
-        displayOauthUrl.textContent = message.payload.oauthUrl || '等待中...';
-        displayOauthUrl.classList.toggle('has-value', Boolean(message.payload.oauthUrl));
+        setOauthUrlDisplay(message.payload.oauthUrl || '');
       }
       if (message.payload.lastLoginCode !== undefined) {
         setOauthLoginCodeDisplay(message.payload.lastLoginCode || '');
       }
       if (message.payload.localhostUrl !== undefined) {
-        displayLocalhostUrl.textContent = message.payload.localhostUrl || '等待中...';
-        displayLocalhostUrl.classList.toggle('has-value', Boolean(message.payload.localhostUrl));
+        setLocalhostUrlDisplay(message.payload.localhostUrl || '');
       }
       if (message.payload.cloudflareTempEmailBaseUrl !== undefined) {
         inputTempEmailBaseUrl.value = message.payload.cloudflareTempEmailBaseUrl || '';
