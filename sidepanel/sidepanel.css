@@ -2257,7 +2257,8 @@ header {
   transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.plus-checkout-mode-option input:checked + span {
+.plus-checkout-mode-option input:checked + span,
+.plus-checkout-mode-option.is-active span {
   border-color: rgba(95, 188, 255, 0.5);
   background: rgba(95, 188, 255, 0.14);
   color: var(--text-primary, #fff);

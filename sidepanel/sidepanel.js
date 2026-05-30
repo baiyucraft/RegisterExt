@@ -277,6 +277,7 @@ const inputGoPayPin = document.getElementById('input-gopay-pin');
 const selectMailProvider = document.getElementById('select-mail-provider');
 const rowRegisterExtTaskMode = document.getElementById('row-register-ext-task-mode');
 const registerExtTaskModeInputs = Array.from(document.querySelectorAll('input[name="register-ext-task-mode"]'));
+const plusCheckoutModeInputs = [inputPlusCheckoutModeUs, inputPlusCheckoutModeJp].filter(Boolean);
 const inputRegisterManagerGroupName = document.getElementById('input-register-manager-group-name');
 const rowRegisterManagerAccountPicker = document.getElementById('row-register-manager-account');
 const selectRegisterManagerAccount = document.getElementById('select-register-manager-account');
@@ -686,6 +687,22 @@ function getEffectivePlusModeEnabled(state = latestState) {
 }
 function getFixedPhoneVerificationEnabled() {
   return false;
+}
+function syncSegmentedRadioVisualState(inputs = []) {
+  inputs.filter(Boolean).forEach((input) => {
+    const label = input.closest?.('label');
+    const checked = Boolean(input.checked);
+    if (label) {
+      label.classList.toggle('is-active', checked);
+      label.setAttribute('aria-pressed', String(checked));
+    }
+  });
+}
+function syncPlusCheckoutModeVisualState() {
+  syncSegmentedRadioVisualState(plusCheckoutModeInputs);
+}
+function syncRegisterExtTaskModeVisualState() {
+  syncSegmentedRadioVisualState(registerExtTaskModeInputs);
 }
 function getCustomPasswordInputValue(state = latestState) {
   return inputPassword ? inputPassword.value : String(state?.customPassword || '');
@@ -2942,6 +2959,7 @@ function applyPlusCheckoutProfileToInputs(state = latestState, options = {}) {
     inputPlusCheckoutModeJp.checked = currentMode === PLUS_CHECKOUT_MODE_JP_PP;
     inputPlusCheckoutModeJp.disabled = Boolean(options.disabled);
   }
+  syncPlusCheckoutModeVisualState();
   if (inputPlusHostedCheckoutOauthDelaySeconds) {
     inputPlusHostedCheckoutOauthDelaySeconds.value = String(
       normalizePlusHostedCheckoutOauthDelaySeconds(normalizedState?.plusHostedCheckoutOauthDelaySeconds)
@@ -10137,6 +10155,7 @@ function updateRegisterExtTaskModeUI() {
   const mode = getSelectedRegisterExtTaskMode(latestState);
   const usesRegisterAccount = mode !== REGISTER_EXT_TASK_MODE_PAY_SEEDED;
   const usesPlusCheckout = mode !== REGISTER_EXT_TASK_MODE_REGISTER_ONLY;
+  syncRegisterExtTaskModeVisualState();
   if (rowRegisterManagerAccountPicker) {
     rowRegisterManagerAccountPicker.style.display = usesRegisterAccount ? '' : 'none';
   }
@@ -10684,9 +10703,10 @@ function updatePlusModeUI() {
   if (plusCheckoutModeSwitchGroup) {
     plusCheckoutModeSwitchGroup.style.display = supportsPlusMode ? '' : 'none';
   }
-  [inputPlusCheckoutModeUs, inputPlusCheckoutModeJp].filter(Boolean).forEach((input) => {
+  plusCheckoutModeInputs.forEach((input) => {
     input.disabled = !checkoutModeSwitchVisible;
   });
+  syncPlusCheckoutModeVisualState();
   if (typeof selectPlusPaymentMethod !== 'undefined' && selectPlusPaymentMethod) {
     selectPlusPaymentMethod.value = selectedMethod;
     if (selectPlusPaymentMethod.style) {
@@ -12058,6 +12078,7 @@ function applySettingsState(state) {
   registerExtTaskModeInputs.forEach((input) => {
     input.checked = input.value === restoredTaskMode;
   });
+  syncRegisterExtTaskModeVisualState();
   if (rowRegisterManagerAccountPicker) {
     rowRegisterManagerAccountPicker.style.display = restoredMailProvider === REGISTER_MANAGER_MAIL_PROVIDER && restoredTaskMode !== REGISTER_EXT_TASK_MODE_PAY_SEEDED ? '' : 'none';
   }
@@ -16394,11 +16415,12 @@ inputPlusModeEnabled?.addEventListener('change', () => {
   saveSettings({ silent: true }).catch(() => { });
 });
 
-[inputPlusCheckoutModeUs, inputPlusCheckoutModeJp].filter(Boolean).forEach((input) => {
+plusCheckoutModeInputs.forEach((input) => {
   input.addEventListener('change', () => {
     if (!input.checked) {
       return;
     }
+    syncPlusCheckoutModeVisualState();
     handlePlusCheckoutModeSelectionChange(input.value);
   });
 });
@@ -16612,6 +16634,8 @@ registerExtTaskModeInputs.forEach((input) => {
       plusCheckoutPaymentStatus: '',
     });
     updateRegisterExtTaskModeUI();
+    updatePlusModeUI();
+    syncRegisterExtTaskModeVisualState();
     const stepDefinitionState = resolveStepDefinitionCapabilityState(latestState, {
       state: { registerExtTaskMode: mode },
     });
@@ -18145,6 +18169,7 @@ function handlePlusCheckoutModeSelectionChange(nextMode) {
     ...buildPlusCheckoutLegacyPatchFromProfile(nextProfile),
   });
   applyPlusCheckoutProfileToInputs(latestState, { mode: normalizedMode });
+  syncPlusCheckoutModeVisualState();
   if (hostedSmsPoolExpanded && typeof queueHostedSmsPoolRefresh === 'function') {
     queueHostedSmsPoolRefresh();
   }

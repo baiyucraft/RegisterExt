@@ -32,7 +32,22 @@ test('RegisterExt task mode UI exposes register-only, register-then-pay, and pay
   assert.match(sidepanel, /REGISTER_EXT_TASK_MODE_PAY_SEEDED/);
   assert.match(sidepanel, /function getSelectedRegisterExtTaskMode/);
   assert.match(sidepanel, /function getEffectivePlusModeEnabled/);
+  assert.match(sidepanel, /function syncSegmentedRadioVisualState/);
+  assert.match(sidepanel, /function syncPlusCheckoutModeVisualState/);
+  assert.match(sidepanel, /function syncRegisterExtTaskModeVisualState/);
   assert.doesNotMatch(sidepanel, /plusModeEnabled:\s*getFixedPlusModeEnabled\(\)/);
+});
+
+test('RegisterExt task and checkout mode switches refresh their active visual state', () => {
+  const css = read('sidepanel/sidepanel.css');
+  const sidepanel = read('sidepanel/sidepanel.js');
+
+  assert.match(css, /\.plus-checkout-mode-option\.is-active span/);
+  assert.match(sidepanel, /const plusCheckoutModeInputs = \[inputPlusCheckoutModeUs, inputPlusCheckoutModeJp\]\.filter\(Boolean\);/);
+  assert.match(sidepanel, /plusCheckoutModeInputs\.forEach\(\(input\) => \{[\s\S]*?syncPlusCheckoutModeVisualState\(\);[\s\S]*?handlePlusCheckoutModeSelectionChange\(input\.value\);/);
+  assert.match(sidepanel, /registerExtTaskModeInputs\.forEach\(\(input\) => \{[\s\S]*?updateRegisterExtTaskModeUI\(\);[\s\S]*?updatePlusModeUI\(\);[\s\S]*?syncRegisterExtTaskModeVisualState\(\);/);
+  assert.match(sidepanel, /function updateRegisterExtTaskModeUI\(\) \{[\s\S]*?syncRegisterExtTaskModeVisualState\(\);/);
+  assert.match(sidepanel, /function applyPlusCheckoutProfileToInputs[\s\S]*?syncPlusCheckoutModeVisualState\(\);/);
 });
 
 test('RegisterExt task modes choose distinct workflow nodes', () => {
