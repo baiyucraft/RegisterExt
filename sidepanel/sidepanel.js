@@ -667,8 +667,11 @@ function normalizeRegisterExtTaskMode(value = '') {
   return REGISTER_EXT_TASK_MODE_REGISTER_ONLY;
 }
 function getSelectedRegisterExtTaskMode(state = latestState) {
+  if (state && Object.prototype.hasOwnProperty.call(state, 'registerExtTaskMode')) {
+    return normalizeRegisterExtTaskMode(state.registerExtTaskMode);
+  }
   const selected = registerExtTaskModeInputs.find((input) => input.checked)?.value;
-  return normalizeRegisterExtTaskMode(selected || state?.registerExtTaskMode || DEFAULT_REGISTER_EXT_TASK_MODE);
+  return normalizeRegisterExtTaskMode(selected || DEFAULT_REGISTER_EXT_TASK_MODE);
 }
 function isRegisterExtPaySeededMode(state = latestState) {
   return getSelectedRegisterExtTaskMode(state) === REGISTER_EXT_TASK_MODE_PAY_SEEDED;
@@ -695,6 +698,14 @@ function syncPlusCheckoutModeVisualState() {
 }
 function syncRegisterExtTaskModeVisualState() {
   syncSegmentedRadioVisualState(registerExtTaskModeInputs);
+}
+function setRegisterExtTaskModeInputs(modeValue) {
+  const mode = normalizeRegisterExtTaskMode(modeValue || DEFAULT_REGISTER_EXT_TASK_MODE);
+  registerExtTaskModeInputs.forEach((input) => {
+    input.checked = input.value === mode;
+  });
+  syncRegisterExtTaskModeVisualState();
+  return mode;
 }
 function getCustomPasswordInputValue(state = latestState) {
   return inputPassword ? inputPassword.value : String(state?.customPassword || '');
@@ -10138,11 +10149,11 @@ function resolveStepDefinitionCapabilityState(state = latestState, options = {})
   };
 }
 
-function updateRegisterExtTaskModeUI() {
-  const mode = getSelectedRegisterExtTaskMode(latestState);
+function updateRegisterExtTaskModeUI(modeValue) {
+  const mode = normalizeRegisterExtTaskMode(modeValue || getSelectedRegisterExtTaskMode(latestState));
   const usesRegistration = mode !== REGISTER_EXT_TASK_MODE_PAY_SEEDED;
   const usesSeededPaymentAccount = mode === REGISTER_EXT_TASK_MODE_PAY_SEEDED;
-  syncRegisterExtTaskModeVisualState();
+  setRegisterExtTaskModeInputs(mode);
   if (rowMailProvider) {
     rowMailProvider.style.display = usesRegistration ? '' : 'none';
   }
@@ -10620,12 +10631,12 @@ function updatePhoneVerificationSettingsUI() {
   updateHeroSmsPlatformDisplay();
 }
 
-function updatePlusModeUI() {
+function updatePlusModeUI(options = {}) {
   const paypalValue = typeof PLUS_PAYMENT_METHOD_PAYPAL !== 'undefined' ? PLUS_PAYMENT_METHOD_PAYPAL : 'paypal';
   const gopayValue = typeof PLUS_PAYMENT_METHOD_GOPAY !== 'undefined' ? PLUS_PAYMENT_METHOD_GOPAY : 'gopay';
   const gpcValue = typeof PLUS_PAYMENT_METHOD_GPC_HELPER !== 'undefined' ? PLUS_PAYMENT_METHOD_GPC_HELPER : 'gpc-helper';
   const defaultMethod = typeof DEFAULT_PLUS_PAYMENT_METHOD !== 'undefined' ? DEFAULT_PLUS_PAYMENT_METHOD : paypalValue;
-  const taskMode = getSelectedRegisterExtTaskMode(latestState);
+  const taskMode = normalizeRegisterExtTaskMode(options.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState));
   const rawEnabled = getEffectivePlusModeEnabled({ ...(latestState || {}), registerExtTaskMode: taskMode });
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
@@ -10633,6 +10644,7 @@ function updatePlusModeUI() {
       state: {
         ...(latestState || {}),
         plusModeEnabled: rawEnabled,
+        registerExtTaskMode: taskMode,
       },
     })
     : (() => {
@@ -10649,6 +10661,7 @@ function updatePlusModeUI() {
           state: {
             ...(latestState || {}),
             plusModeEnabled: rawEnabled,
+            registerExtTaskMode: taskMode,
           },
         })
         : null;
@@ -12063,16 +12076,13 @@ function applySettingsState(state) {
     inputRegisterManagerGroupName.value = String(state?.registerManagerGroupName || '').trim();
   }
   const restoredTaskMode = normalizeRegisterExtTaskMode(state?.registerExtTaskMode);
-  registerExtTaskModeInputs.forEach((input) => {
-    input.checked = input.value === restoredTaskMode;
-  });
-  syncRegisterExtTaskModeVisualState();
+  setRegisterExtTaskModeInputs(restoredTaskMode);
   if (rowRegisterManagerAccountPicker) {
     rowRegisterManagerAccountPicker.style.display = restoredMailProvider === REGISTER_MANAGER_MAIL_PROVIDER && restoredTaskMode !== REGISTER_EXT_TASK_MODE_PAY_SEEDED ? '' : 'none';
   }
   setRegisterManagerAccountOptions([], state?.registerExtSelectedAccountId);
   setPlusCheckoutAccountOptions([], state?.plusCheckoutSelectedAccountId);
-  updateRegisterExtTaskModeUI();
+  updateRegisterExtTaskModeUI(restoredTaskMode);
   inputHotmailRemoteBaseUrl.value = state?.hotmailRemoteBaseUrl || '';
   inputHotmailLocalBaseUrl.value = state?.hotmailLocalBaseUrl || '';
   if (typeof inputHotmailAliasEnabled !== 'undefined' && inputHotmailAliasEnabled) {
@@ -12391,7 +12401,7 @@ function applySettingsState(state) {
   }
   updatePanelModeUI();
   updateMailProviderUI();
-  updateRegisterExtTaskModeUI();
+  updateRegisterExtTaskModeUI(getSelectedRegisterExtTaskMode(latestState));
   if (typeof queueCustomEmailPoolRefresh === 'function') {
     queueCustomEmailPoolRefresh();
   }
@@ -16583,6 +16593,7 @@ async function handleRegisterExtTaskModeSelectionChange(modeValue) {
   }
   registerExtTaskModeSelectionInFlight = true;
   try {
+    setRegisterExtTaskModeInputs(mode);
     syncLatestState({
       registerExtTaskMode: mode,
       plusModeEnabled: getEffectivePlusModeEnabled({ ...(latestState || {}), registerExtTaskMode: mode }),
@@ -16596,9 +16607,8 @@ async function handleRegisterExtTaskModeSelectionChange(modeValue) {
       plusCheckoutStatus: '',
       plusCheckoutPaymentStatus: '',
     });
-    updateRegisterExtTaskModeUI();
-    updatePlusModeUI();
-    syncRegisterExtTaskModeVisualState();
+    updateRegisterExtTaskModeUI(mode);
+    updatePlusModeUI({ registerExtTaskMode: mode });
     const stepDefinitionState = resolveStepDefinitionCapabilityState(latestState, {
       state: { registerExtTaskMode: mode },
     });
@@ -16639,8 +16649,6 @@ document.querySelectorAll('#row-register-ext-task-mode label[for]').forEach((lab
     }
     const wasChecked = Boolean(input.checked);
     if (!wasChecked) {
-      input.checked = true;
-      syncRegisterExtTaskModeVisualState();
       event.preventDefault();
       await handleRegisterExtTaskModeSelectionChange(input.value);
     }
@@ -19839,8 +19847,8 @@ setMail2925Mode(DEFAULT_MAIL_2925_MODE);
 setCloudflareTempEmailLookupMode(DEFAULT_CLOUDFLARE_TEMP_EMAIL_LOOKUP_MODE);
 updatePanelModeUI();
 updateMailProviderUI();
-updateRegisterExtTaskModeUI();
-updatePlusModeUI();
+updateRegisterExtTaskModeUI(getSelectedRegisterExtTaskMode(latestState));
+updatePlusModeUI({ registerExtTaskMode: getSelectedRegisterExtTaskMode(latestState) });
 updateButtonStates();
 initializeReleaseInfo().catch((err) => {
   console.error('Failed to initialize release info:', err);

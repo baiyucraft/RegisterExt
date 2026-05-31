@@ -57,11 +57,11 @@ test('RegisterExt task tabs drive final settings panel visibility matrix', () =>
   assert.match(sidepanel, /const rowRegisterManagerGroupName = document\.getElementById\('row-register-manager-group-name'\);/);
   assert.match(
     sidepanel,
-    /function updateRegisterExtTaskModeUI\(\) \{[\s\S]*?const usesRegistration = mode !== REGISTER_EXT_TASK_MODE_PAY_SEEDED;[\s\S]*?const usesSeededPaymentAccount = mode === REGISTER_EXT_TASK_MODE_PAY_SEEDED;[\s\S]*?rowMailProvider\.style\.display = usesRegistration \? '' : 'none';[\s\S]*?rowRegisterManagerGroupName\.style\.display = '';[\s\S]*?rowRegisterManagerAccountPicker\.style\.display = usesRegistration \? '' : 'none';[\s\S]*?rowPlusCheckoutAccount\.style\.display = usesSeededPaymentAccount \? '' : 'none';/
+    /function updateRegisterExtTaskModeUI\(modeValue\) \{[\s\S]*?const mode = normalizeRegisterExtTaskMode\(modeValue \|\| getSelectedRegisterExtTaskMode\(latestState\)\);[\s\S]*?setRegisterExtTaskModeInputs\(mode\);[\s\S]*?rowMailProvider\.style\.display = usesRegistration \? '' : 'none';[\s\S]*?rowRegisterManagerGroupName\.style\.display = '';[\s\S]*?rowRegisterManagerAccountPicker\.style\.display = usesRegistration \? '' : 'none';[\s\S]*?rowPlusCheckoutAccount\.style\.display = usesSeededPaymentAccount \? '' : 'none';/
   );
   assert.match(
     sidepanel,
-    /function updatePlusModeUI\(\) \{[\s\S]*?const taskMode = getSelectedRegisterExtTaskMode\(latestState\);[\s\S]*?const rawEnabled = getEffectivePlusModeEnabled\(\{ \.\.\.\(latestState \|\| \{\}\), registerExtTaskMode: taskMode \}\);[\s\S]*?rowPlusMode\.style\.display = enabled \? '' : 'none';[\s\S]*?plusCheckoutModeSwitchGroup\.style\.display = checkoutModeSwitchVisible \? '' : 'none';/
+    /function updatePlusModeUI\(options = \{\}\) \{[\s\S]*?const taskMode = normalizeRegisterExtTaskMode\(options\.registerExtTaskMode \|\| getSelectedRegisterExtTaskMode\(latestState\)\);[\s\S]*?registerExtTaskMode: taskMode,[\s\S]*?rowPlusMode\.style\.display = enabled \? '' : 'none';[\s\S]*?plusCheckoutModeSwitchGroup\.style\.display = checkoutModeSwitchVisible \? '' : 'none';/
   );
   assert.match(
     sidepanel,
@@ -76,9 +76,9 @@ test('RegisterExt task and checkout mode switches refresh their active visual st
   assert.match(css, /\.plus-checkout-mode-option\.is-active span/);
   assert.match(sidepanel, /const plusCheckoutModeInputs = \[inputPlusCheckoutModeUs, inputPlusCheckoutModeJp\]\.filter\(Boolean\);/);
   assert.match(sidepanel, /plusCheckoutModeInputs\.forEach\(\(input\) => \{[\s\S]*?syncPlusCheckoutModeVisualState\(\);[\s\S]*?handlePlusCheckoutModeSelectionChange\(input\.value\);/);
-  assert.match(sidepanel, /async function handleRegisterExtTaskModeSelectionChange\(modeValue\) \{[\s\S]*?updateRegisterExtTaskModeUI\(\);[\s\S]*?updatePlusModeUI\(\);[\s\S]*?syncRegisterExtTaskModeVisualState\(\);/);
+  assert.match(sidepanel, /async function handleRegisterExtTaskModeSelectionChange\(modeValue\) \{[\s\S]*?setRegisterExtTaskModeInputs\(mode\);[\s\S]*?updateRegisterExtTaskModeUI\(mode\);[\s\S]*?updatePlusModeUI\(\{ registerExtTaskMode: mode \}\);/);
   assert.match(sidepanel, /registerExtTaskModeInputs\.forEach\(\(input\) => \{[\s\S]*?input\.addEventListener\('change', async \(\) => \{[\s\S]*?if \(!input\.checked\) \{[\s\S]*?return;[\s\S]*?await handleRegisterExtTaskModeSelectionChange\(input\.value\);/);
-  assert.match(sidepanel, /function updateRegisterExtTaskModeUI\(\) \{[\s\S]*?syncRegisterExtTaskModeVisualState\(\);/);
+  assert.match(sidepanel, /function setRegisterExtTaskModeInputs\(modeValue\) \{[\s\S]*?input\.checked = input\.value === mode;[\s\S]*?syncRegisterExtTaskModeVisualState\(\);/);
   assert.match(sidepanel, /function applyPlusCheckoutProfileToInputs[\s\S]*?syncPlusCheckoutModeVisualState\(\);/);
 });
 
@@ -88,13 +88,27 @@ test('RegisterExt task tab label clicks have a single fallback handler', () => {
   assert.match(sidepanel, /let registerExtTaskModeSelectionInFlight = false;/);
   assert.match(
     sidepanel,
-    /document\.querySelectorAll\('#row-register-ext-task-mode label\[for\]'\)\.forEach\(\(label\) => \{[\s\S]*?label\.addEventListener\('click', async \(event\) => \{[\s\S]*?const wasChecked = Boolean\(input\.checked\);[\s\S]*?if \(!wasChecked\) \{[\s\S]*?input\.checked = true;[\s\S]*?event\.preventDefault\(\);[\s\S]*?await handleRegisterExtTaskModeSelectionChange\(input\.value\);/
+    /document\.querySelectorAll\('#row-register-ext-task-mode label\[for\]'\)\.forEach\(\(label\) => \{[\s\S]*?label\.addEventListener\('click', async \(event\) => \{[\s\S]*?const wasChecked = Boolean\(input\.checked\);[\s\S]*?if \(!wasChecked\) \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?await handleRegisterExtTaskModeSelectionChange\(input\.value\);/
   );
   assert.match(
     sidepanel,
     /async function handleRegisterExtTaskModeSelectionChange\(modeValue\) \{[\s\S]*?if \(registerExtTaskModeSelectionInFlight\) \{[\s\S]*?return;[\s\S]*?registerExtTaskModeSelectionInFlight = true;[\s\S]*?finally \{[\s\S]*?registerExtTaskModeSelectionInFlight = false;/
   );
   assert.match(sidepanel, /registerExtTaskMode: mode/);
+});
+
+test('RegisterExt explicit mode beats stale checked radio state', () => {
+  const sidepanel = read('sidepanel/sidepanel.js');
+
+  assert.match(
+    sidepanel,
+    /function getSelectedRegisterExtTaskMode\(state = latestState\) \{[\s\S]*?hasOwnProperty\.call\(state, 'registerExtTaskMode'\)[\s\S]*?return normalizeRegisterExtTaskMode\(state\.registerExtTaskMode\);[\s\S]*?const selected = registerExtTaskModeInputs\.find/
+  );
+  assert.match(
+    sidepanel,
+    /const restoredTaskMode = normalizeRegisterExtTaskMode\(state\?\.registerExtTaskMode\);[\s\S]*?setRegisterExtTaskModeInputs\(restoredTaskMode\);[\s\S]*?updateRegisterExtTaskModeUI\(restoredTaskMode\);/
+  );
+  assert.match(sidepanel, /updatePlusModeUI\(\{ registerExtTaskMode: getSelectedRegisterExtTaskMode\(latestState\) \}\);/);
 });
 
 test('RegisterExt task mode changes force workflow rerender beyond Plus mode changes', () => {
