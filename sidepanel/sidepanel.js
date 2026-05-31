@@ -709,7 +709,9 @@ let currentPlusModeEnabled = false;
 let currentPlusPaymentMethod = DEFAULT_PLUS_PAYMENT_METHOD;
 let currentPlusAccountAccessStrategy = PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
 let currentSignupMethod = DEFAULT_SIGNUP_METHOD;
+let currentRegisterExtTaskMode = DEFAULT_REGISTER_EXT_TASK_MODE;
 let currentPhoneSignupReloginAfterBindEmailEnabled = DEFAULT_PHONE_SIGNUP_RELOGIN_AFTER_BIND_EMAIL_ENABLED;
+let registerExtTaskModeSelectionInFlight = false;
 let hostedSmsPoolExpanded = true;
 let chatGptApiSmsPoolExpanded = false;
 let localCpaJsonAuthDirExpanded = false;
@@ -1187,6 +1189,7 @@ function rebuildStepDefinitionState(plusModeEnabled = false, options = {}) {
   currentPlusPaymentMethod = normalizePlusPaymentMethod(rawPaymentMethod);
   currentPlusAccountAccessStrategy = normalizeAccountAccessStrategySafe(rawAccountAccessStrategy);
   currentSignupMethod = normalizeSignupMethod(rawSignupMethod);
+  currentRegisterExtTaskMode = normalizeRegisterExtTaskMode(options?.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState));
   currentPhoneSignupReloginAfterBindEmailEnabled = phoneSignupReloginAfterBindEmailEnabled;
   stepDefinitions = getStepDefinitionsForMode(currentPlusModeEnabled, {
     activeFlowId: options?.activeFlowId,
@@ -1194,7 +1197,7 @@ function rebuildStepDefinitionState(plusModeEnabled = false, options = {}) {
     plusPaymentMethod: currentPlusPaymentMethod,
     plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
     signupMethod: currentSignupMethod,
-    registerExtTaskMode: normalizeRegisterExtTaskMode(options?.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState)),
+    registerExtTaskMode: currentRegisterExtTaskMode,
     phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
   });
   const nextWorkflowNodes = typeof getWorkflowNodesForMode === 'function'
@@ -1204,7 +1207,7 @@ function rebuildStepDefinitionState(plusModeEnabled = false, options = {}) {
       plusPaymentMethod: currentPlusPaymentMethod,
       plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
       signupMethod: currentSignupMethod,
-      registerExtTaskMode: normalizeRegisterExtTaskMode(options?.registerExtTaskMode || getSelectedRegisterExtTaskMode(latestState)),
+      registerExtTaskMode: currentRegisterExtTaskMode,
       phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
     })
     : stepDefinitions.map((step) => ({
@@ -11633,6 +11636,7 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
     || nextPaymentMethod !== currentPlusPaymentMethod
     || nextAccountAccessStrategy !== currentPlusAccountAccessStrategy
     || nextSignupMethod !== currentSignupMethod
+    || nextRegisterExtTaskMode !== currentRegisterExtTaskMode
     || nextPhoneSignupReloginAfterBindEmailEnabled !== currentPhoneSignupReloginAfterBindEmailEnabled
     || paymentTitleChanged;
   if (!shouldRender) {
@@ -11648,6 +11652,7 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
     registerExtTaskMode: nextRegisterExtTaskMode,
     phoneSignupReloginAfterBindEmailEnabled: nextPhoneSignupReloginAfterBindEmailEnabled,
   });
+  currentRegisterExtTaskMode = nextRegisterExtTaskMode;
   renderStepsList();
 }
 
@@ -16571,9 +16576,13 @@ btnRefreshPlusCheckoutAccounts?.addEventListener('click', async () => {
   await refreshPlusCheckoutAccountCandidates();
 });
 
-registerExtTaskModeInputs.forEach((input) => {
-  input.addEventListener('change', async () => {
-    const mode = getSelectedRegisterExtTaskMode(latestState);
+async function handleRegisterExtTaskModeSelectionChange(modeValue) {
+  const mode = normalizeRegisterExtTaskMode(modeValue || getSelectedRegisterExtTaskMode(latestState));
+  if (registerExtTaskModeSelectionInFlight) {
+    return;
+  }
+  registerExtTaskModeSelectionInFlight = true;
+  try {
     syncLatestState({
       registerExtTaskMode: mode,
       plusModeEnabled: getEffectivePlusModeEnabled({ ...(latestState || {}), registerExtTaskMode: mode }),
@@ -16606,6 +16615,34 @@ registerExtTaskModeInputs.forEach((input) => {
       await refreshPlusCheckoutAccountCandidates({ silent: true }).catch(() => { });
     } else {
       maybeQueueRegisterExtCandidateRefresh();
+    }
+  } finally {
+    registerExtTaskModeSelectionInFlight = false;
+  }
+}
+
+registerExtTaskModeInputs.forEach((input) => {
+  input.addEventListener('change', async () => {
+    if (!input.checked) {
+      return;
+    }
+    await handleRegisterExtTaskModeSelectionChange(input.value);
+  });
+});
+
+document.querySelectorAll('#row-register-ext-task-mode label[for]').forEach((label) => {
+  label.addEventListener('click', async (event) => {
+    const inputId = label.getAttribute('for');
+    const input = inputId ? document.getElementById(inputId) : label.querySelector('input[name="register-ext-task-mode"]');
+    if (!input || !registerExtTaskModeInputs.includes(input)) {
+      return;
+    }
+    const wasChecked = Boolean(input.checked);
+    if (!wasChecked) {
+      input.checked = true;
+      syncRegisterExtTaskModeVisualState();
+      event.preventDefault();
+      await handleRegisterExtTaskModeSelectionChange(input.value);
     }
   });
 });

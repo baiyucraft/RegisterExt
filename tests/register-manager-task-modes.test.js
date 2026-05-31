@@ -76,9 +76,36 @@ test('RegisterExt task and checkout mode switches refresh their active visual st
   assert.match(css, /\.plus-checkout-mode-option\.is-active span/);
   assert.match(sidepanel, /const plusCheckoutModeInputs = \[inputPlusCheckoutModeUs, inputPlusCheckoutModeJp\]\.filter\(Boolean\);/);
   assert.match(sidepanel, /plusCheckoutModeInputs\.forEach\(\(input\) => \{[\s\S]*?syncPlusCheckoutModeVisualState\(\);[\s\S]*?handlePlusCheckoutModeSelectionChange\(input\.value\);/);
-  assert.match(sidepanel, /registerExtTaskModeInputs\.forEach\(\(input\) => \{[\s\S]*?updateRegisterExtTaskModeUI\(\);[\s\S]*?updatePlusModeUI\(\);[\s\S]*?syncRegisterExtTaskModeVisualState\(\);/);
+  assert.match(sidepanel, /async function handleRegisterExtTaskModeSelectionChange\(modeValue\) \{[\s\S]*?updateRegisterExtTaskModeUI\(\);[\s\S]*?updatePlusModeUI\(\);[\s\S]*?syncRegisterExtTaskModeVisualState\(\);/);
+  assert.match(sidepanel, /registerExtTaskModeInputs\.forEach\(\(input\) => \{[\s\S]*?input\.addEventListener\('change', async \(\) => \{[\s\S]*?if \(!input\.checked\) \{[\s\S]*?return;[\s\S]*?await handleRegisterExtTaskModeSelectionChange\(input\.value\);/);
   assert.match(sidepanel, /function updateRegisterExtTaskModeUI\(\) \{[\s\S]*?syncRegisterExtTaskModeVisualState\(\);/);
   assert.match(sidepanel, /function applyPlusCheckoutProfileToInputs[\s\S]*?syncPlusCheckoutModeVisualState\(\);/);
+});
+
+test('RegisterExt task tab label clicks have a single fallback handler', () => {
+  const sidepanel = read('sidepanel/sidepanel.js');
+
+  assert.match(sidepanel, /let registerExtTaskModeSelectionInFlight = false;/);
+  assert.match(
+    sidepanel,
+    /document\.querySelectorAll\('#row-register-ext-task-mode label\[for\]'\)\.forEach\(\(label\) => \{[\s\S]*?label\.addEventListener\('click', async \(event\) => \{[\s\S]*?const wasChecked = Boolean\(input\.checked\);[\s\S]*?if \(!wasChecked\) \{[\s\S]*?input\.checked = true;[\s\S]*?event\.preventDefault\(\);[\s\S]*?await handleRegisterExtTaskModeSelectionChange\(input\.value\);/
+  );
+  assert.match(
+    sidepanel,
+    /async function handleRegisterExtTaskModeSelectionChange\(modeValue\) \{[\s\S]*?if \(registerExtTaskModeSelectionInFlight\) \{[\s\S]*?return;[\s\S]*?registerExtTaskModeSelectionInFlight = true;[\s\S]*?finally \{[\s\S]*?registerExtTaskModeSelectionInFlight = false;/
+  );
+  assert.match(sidepanel, /registerExtTaskMode: mode/);
+});
+
+test('RegisterExt task mode changes force workflow rerender beyond Plus mode changes', () => {
+  const sidepanel = read('sidepanel/sidepanel.js');
+
+  assert.match(sidepanel, /let currentRegisterExtTaskMode = DEFAULT_REGISTER_EXT_TASK_MODE;/);
+  assert.match(sidepanel, /currentRegisterExtTaskMode = normalizeRegisterExtTaskMode\(options\?\.registerExtTaskMode \|\| getSelectedRegisterExtTaskMode\(latestState\)\);/);
+  assert.match(
+    sidepanel,
+    /const shouldRender = Boolean\(options\.render\)[\s\S]*?\|\| nextRegisterExtTaskMode !== currentRegisterExtTaskMode[\s\S]*?\|\| nextPhoneSignupReloginAfterBindEmailEnabled !== currentPhoneSignupReloginAfterBindEmailEnabled/
+  );
 });
 
 test('RegisterExt payment candidate refresh keeps group filtering', () => {
