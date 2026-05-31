@@ -699,6 +699,18 @@ function syncPlusCheckoutModeVisualState() {
 function syncRegisterExtTaskModeVisualState() {
   syncSegmentedRadioVisualState(registerExtTaskModeInputs);
 }
+function setPlusCheckoutModeInputs(modeValue, options = {}) {
+  const mode = normalizePlusCheckoutModeValue(modeValue || DEFAULT_PLUS_CHECKOUT_MODE);
+  const hasDisabledOption = Object.prototype.hasOwnProperty.call(options, 'disabled');
+  plusCheckoutModeInputs.forEach((input) => {
+    input.checked = input.value === mode;
+    if (hasDisabledOption) {
+      input.disabled = Boolean(options.disabled);
+    }
+  });
+  syncPlusCheckoutModeVisualState();
+  return mode;
+}
 function setRegisterExtTaskModeInputs(modeValue) {
   const mode = normalizeRegisterExtTaskMode(modeValue || DEFAULT_REGISTER_EXT_TASK_MODE);
   registerExtTaskModeInputs.forEach((input) => {
@@ -723,6 +735,8 @@ let currentSignupMethod = DEFAULT_SIGNUP_METHOD;
 let currentRegisterExtTaskMode = DEFAULT_REGISTER_EXT_TASK_MODE;
 let currentPhoneSignupReloginAfterBindEmailEnabled = DEFAULT_PHONE_SIGNUP_RELOGIN_AFTER_BIND_EMAIL_ENABLED;
 let registerExtTaskModeSelectionInFlight = false;
+let plusCheckoutModeSelectionInFlight = false;
+let queuedPlusCheckoutModeSelection = '';
 let hostedSmsPoolExpanded = true;
 let chatGptApiSmsPoolExpanded = false;
 let localCpaJsonAuthDirExpanded = false;
@@ -2893,6 +2907,9 @@ function getLocalPlusCheckoutProfilesDraft(state = latestState) {
 }
 
 function getSelectedPlusCheckoutMode(state = latestState) {
+  if (state && Object.prototype.hasOwnProperty.call(state, 'plusCheckoutMode')) {
+    return normalizePlusCheckoutModeValue(state.plusCheckoutMode);
+  }
   if (inputPlusCheckoutModeUs?.checked) {
     return PLUS_CHECKOUT_MODE_US_PP;
   }
@@ -2967,15 +2984,7 @@ function applyPlusCheckoutProfileToInputs(state = latestState, options = {}) {
   );
   const currentProfiles = getLocalPlusCheckoutProfilesDraft(normalizedState);
   const profile = currentProfiles[currentMode] || buildDefaultPlusCheckoutProfile();
-  if (inputPlusCheckoutModeUs) {
-    inputPlusCheckoutModeUs.checked = currentMode === PLUS_CHECKOUT_MODE_US_PP;
-    inputPlusCheckoutModeUs.disabled = Boolean(options.disabled);
-  }
-  if (inputPlusCheckoutModeJp) {
-    inputPlusCheckoutModeJp.checked = currentMode === PLUS_CHECKOUT_MODE_JP_PP;
-    inputPlusCheckoutModeJp.disabled = Boolean(options.disabled);
-  }
-  syncPlusCheckoutModeVisualState();
+  setPlusCheckoutModeInputs(currentMode, { disabled: Boolean(options.disabled) });
   if (inputPlusHostedCheckoutOauthDelaySeconds) {
     inputPlusHostedCheckoutOauthDelaySeconds.value = String(
       normalizePlusHostedCheckoutOauthDelaySeconds(normalizedState?.plusHostedCheckoutOauthDelaySeconds)
@@ -10671,6 +10680,11 @@ function updatePlusModeUI(options = {}) {
     : true;
   const enabled = supportsPlusMode && rawEnabled;
   const method = enabled ? getSelectedPlusPaymentMethod() : defaultMethod;
+  const checkoutMode = normalizePlusCheckoutModeValue(
+    options.plusCheckoutMode !== undefined
+      ? options.plusCheckoutMode
+      : getSelectedPlusCheckoutMode(latestState)
+  );
   const gpcPhoneMode = normalizeGpcHelperPhoneModeValue(
     typeof selectGpcHelperPhoneMode !== 'undefined' && selectGpcHelperPhoneMode
       ? selectGpcHelperPhoneMode.value
@@ -10701,10 +10715,7 @@ function updatePlusModeUI(options = {}) {
   if (plusCheckoutModeSwitchGroup) {
     plusCheckoutModeSwitchGroup.style.display = checkoutModeSwitchVisible ? '' : 'none';
   }
-  plusCheckoutModeInputs.forEach((input) => {
-    input.disabled = !checkoutModeSwitchVisible;
-  });
-  syncPlusCheckoutModeVisualState();
+  setPlusCheckoutModeInputs(checkoutMode, { disabled: !checkoutModeSwitchVisible });
   if (typeof selectPlusPaymentMethod !== 'undefined' && selectPlusPaymentMethod) {
     selectPlusPaymentMethod.value = selectedMethod;
     if (selectPlusPaymentMethod.style) {
@@ -16385,12 +16396,26 @@ inputPlusModeEnabled?.addEventListener('change', () => {
 });
 
 plusCheckoutModeInputs.forEach((input) => {
-  input.addEventListener('change', () => {
+  input.addEventListener('change', async () => {
     if (!input.checked) {
       return;
     }
-    syncPlusCheckoutModeVisualState();
-    handlePlusCheckoutModeSelectionChange(input.value);
+    await handlePlusCheckoutModeSelectionChange(input.value);
+  });
+});
+
+document.querySelectorAll('#plus-checkout-mode-switch-group label[for]').forEach((label) => {
+  label.addEventListener('click', async (event) => {
+    const inputId = label.getAttribute('for');
+    const input = inputId ? document.getElementById(inputId) : label.querySelector('input[name="plus-checkout-mode"]');
+    if (!input || !plusCheckoutModeInputs.includes(input)) {
+      return;
+    }
+    const wasChecked = Boolean(input.checked);
+    if (!wasChecked) {
+      event.preventDefault();
+      await handlePlusCheckoutModeSelectionChange(input.value);
+    }
   });
 });
 
@@ -17972,33 +17997,53 @@ function syncHostedCheckoutResendSettingsInputs() {
   }
 }
 
-function handlePlusCheckoutModeSelectionChange(nextMode) {
-  const previousMode = getActivePlusCheckoutModeFromState(latestState);
-  const previousProfileDraft = buildPlusCheckoutProfileFromInputs();
-  syncPlusCheckoutProfileForModeIntoLatestState(previousMode, previousProfileDraft);
-  const normalizedMode = normalizePlusCheckoutModeValue(nextMode);
-  localPlusCheckoutMode = normalizedMode;
-  const normalizedState = normalizePlusCheckoutStateForUi({
-    ...(latestState || {}),
-    plusCheckoutMode: normalizedMode,
-  }, {
-    legacyOverrideSource: { plusCheckoutMode: normalizedMode },
-  });
-  syncLocalPlusCheckoutDraftFromState(normalizedState);
-  const nextProfile = normalizedState?.plusCheckoutProfiles?.[normalizedMode] || buildDefaultPlusCheckoutProfile();
-  syncLatestState({
-    plusCheckoutMode: normalizedMode,
-    plusCheckoutProfiles: localPlusCheckoutProfiles,
-    ...buildPlusCheckoutLegacyPatchFromProfile(nextProfile),
-  });
-  applyPlusCheckoutProfileToInputs(latestState, { mode: normalizedMode });
-  syncPlusCheckoutModeVisualState();
-  if (hostedSmsPoolExpanded && typeof queueHostedSmsPoolRefresh === 'function') {
-    queueHostedSmsPoolRefresh();
+async function handlePlusCheckoutModeSelectionChange(nextMode) {
+  const normalizedMode = normalizePlusCheckoutModeValue(nextMode || getSelectedPlusCheckoutMode(latestState));
+  if (plusCheckoutModeSelectionInFlight) {
+    queuedPlusCheckoutModeSelection = normalizedMode;
+    setPlusCheckoutModeInputs(normalizedMode);
+    return;
   }
-  updatePlusModeUI();
-  markSettingsDirty(true);
-  saveSettings({ silent: true }).catch(() => { });
+  plusCheckoutModeSelectionInFlight = true;
+  try {
+    queuedPlusCheckoutModeSelection = '';
+    setPlusCheckoutModeInputs(normalizedMode);
+    const previousMode = getActivePlusCheckoutModeFromState(latestState);
+    const previousProfileDraft = buildPlusCheckoutProfileFromInputs();
+    syncPlusCheckoutProfileForModeIntoLatestState(previousMode, previousProfileDraft);
+    localPlusCheckoutMode = normalizedMode;
+    const normalizedState = normalizePlusCheckoutStateForUi({
+      ...(latestState || {}),
+      plusCheckoutMode: normalizedMode,
+    }, {
+      legacyOverrideSource: { plusCheckoutMode: normalizedMode },
+    });
+    syncLocalPlusCheckoutDraftFromState(normalizedState);
+    const nextProfile = normalizedState?.plusCheckoutProfiles?.[normalizedMode] || buildDefaultPlusCheckoutProfile();
+    syncLatestState({
+      plusCheckoutMode: normalizedMode,
+      plusCheckoutProfiles: localPlusCheckoutProfiles,
+      ...buildPlusCheckoutLegacyPatchFromProfile(nextProfile),
+    });
+    applyPlusCheckoutProfileToInputs(latestState, { mode: normalizedMode });
+    if (hostedSmsPoolExpanded && typeof queueHostedSmsPoolRefresh === 'function') {
+      queueHostedSmsPoolRefresh();
+    }
+    updatePlusModeUI({ plusCheckoutMode: normalizedMode });
+    markSettingsDirty(true);
+    await saveSettings({ silent: true }).catch(() => { });
+  } finally {
+    plusCheckoutModeSelectionInFlight = false;
+    const queuedModeValue = queuedPlusCheckoutModeSelection;
+    queuedPlusCheckoutModeSelection = '';
+    if (queuedModeValue) {
+      const queuedMode = normalizePlusCheckoutModeValue(queuedModeValue);
+      if (queuedMode === normalizedMode) {
+        return;
+      }
+      await handlePlusCheckoutModeSelectionChange(queuedMode);
+    }
+  }
 }
 inputAutoStepDelaySeconds.addEventListener('input', () => {
   markSettingsDirty(true);

@@ -75,11 +75,13 @@ test('RegisterExt task and checkout mode switches refresh their active visual st
 
   assert.match(css, /\.plus-checkout-mode-option\.is-active span/);
   assert.match(sidepanel, /const plusCheckoutModeInputs = \[inputPlusCheckoutModeUs, inputPlusCheckoutModeJp\]\.filter\(Boolean\);/);
-  assert.match(sidepanel, /plusCheckoutModeInputs\.forEach\(\(input\) => \{[\s\S]*?syncPlusCheckoutModeVisualState\(\);[\s\S]*?handlePlusCheckoutModeSelectionChange\(input\.value\);/);
+  assert.match(sidepanel, /function setPlusCheckoutModeInputs\(modeValue, options = \{\}\) \{[\s\S]*?input\.checked = input\.value === mode;[\s\S]*?input\.disabled = Boolean\(options\.disabled\);[\s\S]*?syncPlusCheckoutModeVisualState\(\);[\s\S]*?return mode;/);
+  assert.match(sidepanel, /plusCheckoutModeInputs\.forEach\(\(input\) => \{[\s\S]*?input\.addEventListener\('change', async \(\) => \{[\s\S]*?if \(!input\.checked\) \{[\s\S]*?return;[\s\S]*?await handlePlusCheckoutModeSelectionChange\(input\.value\);/);
   assert.match(sidepanel, /async function handleRegisterExtTaskModeSelectionChange\(modeValue\) \{[\s\S]*?setRegisterExtTaskModeInputs\(mode\);[\s\S]*?updateRegisterExtTaskModeUI\(mode\);[\s\S]*?updatePlusModeUI\(\{ registerExtTaskMode: mode \}\);/);
   assert.match(sidepanel, /registerExtTaskModeInputs\.forEach\(\(input\) => \{[\s\S]*?input\.addEventListener\('change', async \(\) => \{[\s\S]*?if \(!input\.checked\) \{[\s\S]*?return;[\s\S]*?await handleRegisterExtTaskModeSelectionChange\(input\.value\);/);
   assert.match(sidepanel, /function setRegisterExtTaskModeInputs\(modeValue\) \{[\s\S]*?input\.checked = input\.value === mode;[\s\S]*?syncRegisterExtTaskModeVisualState\(\);/);
-  assert.match(sidepanel, /function applyPlusCheckoutProfileToInputs[\s\S]*?syncPlusCheckoutModeVisualState\(\);/);
+  assert.match(sidepanel, /function applyPlusCheckoutProfileToInputs[\s\S]*?setPlusCheckoutModeInputs\(currentMode, \{ disabled: Boolean\(options\.disabled\) \}\);/);
+  assert.match(sidepanel, /function updatePlusModeUI\(options = \{\}\) \{[\s\S]*?const checkoutMode = normalizePlusCheckoutModeValue\([\s\S]*?options\.plusCheckoutMode[\s\S]*?getSelectedPlusCheckoutMode\(latestState\)[\s\S]*?setPlusCheckoutModeInputs\(checkoutMode, \{ disabled: !checkoutModeSwitchVisible \}\);/);
 });
 
 test('RegisterExt task tab label clicks have a single fallback handler', () => {
@@ -97,6 +99,22 @@ test('RegisterExt task tab label clicks have a single fallback handler', () => {
   assert.match(sidepanel, /registerExtTaskMode: mode/);
 });
 
+test('RegisterExt checkout mode label clicks have a single fallback handler', () => {
+  const sidepanel = read('sidepanel/sidepanel.js');
+
+  assert.match(sidepanel, /let plusCheckoutModeSelectionInFlight = false;/);
+  assert.match(sidepanel, /let queuedPlusCheckoutModeSelection = '';/);
+  assert.match(
+    sidepanel,
+    /document\.querySelectorAll\('#plus-checkout-mode-switch-group label\[for\]'\)\.forEach\(\(label\) => \{[\s\S]*?label\.addEventListener\('click', async \(event\) => \{[\s\S]*?const wasChecked = Boolean\(input\.checked\);[\s\S]*?if \(!wasChecked\) \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?await handlePlusCheckoutModeSelectionChange\(input\.value\);/
+  );
+  assert.match(
+    sidepanel,
+    /async function handlePlusCheckoutModeSelectionChange\(nextMode\) \{[\s\S]*?if \(plusCheckoutModeSelectionInFlight\) \{[\s\S]*?queuedPlusCheckoutModeSelection = normalizedMode;[\s\S]*?setPlusCheckoutModeInputs\(normalizedMode\);[\s\S]*?return;[\s\S]*?plusCheckoutModeSelectionInFlight = true;[\s\S]*?queuedPlusCheckoutModeSelection = '';[\s\S]*?updatePlusModeUI\(\{ plusCheckoutMode: normalizedMode \}\);[\s\S]*?await saveSettings\(\{ silent: true \}\)\.catch\(\(\) => \{ \}\);[\s\S]*?finally \{[\s\S]*?plusCheckoutModeSelectionInFlight = false;[\s\S]*?const queuedModeValue = queuedPlusCheckoutModeSelection;[\s\S]*?if \(queuedModeValue\) \{[\s\S]*?await handlePlusCheckoutModeSelectionChange\(queuedMode\);/
+  );
+  assert.match(sidepanel, /plusCheckoutMode: normalizedMode/);
+});
+
 test('RegisterExt explicit mode beats stale checked radio state', () => {
   const sidepanel = read('sidepanel/sidepanel.js');
 
@@ -109,6 +127,23 @@ test('RegisterExt explicit mode beats stale checked radio state', () => {
     /const restoredTaskMode = normalizeRegisterExtTaskMode\(state\?\.registerExtTaskMode\);[\s\S]*?setRegisterExtTaskModeInputs\(restoredTaskMode\);[\s\S]*?updateRegisterExtTaskModeUI\(restoredTaskMode\);/
   );
   assert.match(sidepanel, /updatePlusModeUI\(\{ registerExtTaskMode: getSelectedRegisterExtTaskMode\(latestState\) \}\);/);
+});
+
+test('RegisterExt explicit checkout mode beats stale checked radio state', () => {
+  const sidepanel = read('sidepanel/sidepanel.js');
+
+  assert.match(
+    sidepanel,
+    /function getSelectedPlusCheckoutMode\(state = latestState\) \{[\s\S]*?hasOwnProperty\.call\(state, 'plusCheckoutMode'\)[\s\S]*?return normalizePlusCheckoutModeValue\(state\.plusCheckoutMode\);[\s\S]*?if \(inputPlusCheckoutModeUs\?\.checked\)/
+  );
+  assert.match(
+    sidepanel,
+    /const selectedPlusCheckoutMode = getSelectedPlusCheckoutMode\(latestState\);[\s\S]*?localPlusCheckoutMode = selectedPlusCheckoutMode;[\s\S]*?syncLatestState\(\{ plusCheckoutMode: selectedPlusCheckoutMode \}\);/
+  );
+  assert.match(
+    sidepanel,
+    /async function handlePlusCheckoutModeSelectionChange\(nextMode\) \{[\s\S]*?const normalizedMode = normalizePlusCheckoutModeValue[\s\S]*?setPlusCheckoutModeInputs\(normalizedMode\);[\s\S]*?syncLatestState\(\{[\s\S]*?plusCheckoutMode: normalizedMode,/
+  );
 });
 
 test('RegisterExt task mode changes force workflow rerender beyond Plus mode changes', () => {
